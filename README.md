@@ -1,98 +1,124 @@
-# Triagem de Tórax por Radiografia — protótipo de pesquisa
+# Análise de Radiografias de Tórax
 
-Reconstrução do conceito de "detecção de doença pulmonar" da demonstração
-YOLOvX, porém formulado de maneira tecnicamente adequada para radiografia de
-tórax. Classificação multipatologia + Grad-CAM, com modelo pré-treinado em
-bases públicas reais.
+Protótipo educacional para classificação multirrótulo de radiografias de tórax
+e visualização das regiões que influenciam as previsões do modelo.
 
-> **Aviso.** Ferramenta de pesquisa e ensino. Não é dispositivo médico, não
-> possui registro em ANVISA/FDA e não deve orientar diagnóstico ou decisão
-> clínica sobre pacientes reais.
+> O projeto demonstra técnicas de visão computacional e não deve ser utilizado
+> para diagnóstico ou tomada de decisão clínica.
 
-## Por que esta versão é diferente da demo original
+## Estrutura
 
-| Problema na demo YOLOvX | Escolha aqui |
-|---|---|
-| Detecção com bounding boxes cobrindo o pulmão inteiro | Classificação multirrótulo; a pneumonia é um padrão de opacidade difuso, não um objeto com contorno |
-| Localização grosseira por caixa | Grad-CAM (mapa de calor contínuo) na última camada convolucional |
-| Modelo e base de treino não declarados | DenseNet-121 do `torchxrayvision`, treinado em NIH, PadChest, CheXpert, MIMIC-CXR, Kaggle e OpenI |
-| Confiança exibida sem contexto | Probabilidade mostrada junto ao limiar de operação calibrado (`op_threshold`) |
-| Captura de tela de radiografia | Suporte a DICOM real, com tratamento de rescale e MONOCHROME1 |
-
-## Arquitetura
-
-```
+```text
 torax/
-├── main.py            API FastAPI: /analyze, /health e frontend
-├── xray_model.py      carregamento do modelo, inferência e Grad-CAM
-├── imaging.py         leitura de PNG/JPG/DICOM e pré-processamento
-├── overlay.py         colormap tipo jet e composição da sobreposição
-├── index.html         atlas e interface de análise
-├── app.js             interação do atlas e envio para a API
-├── assets/            imagens abertas usadas na demonstração
-├── smoke_test.py      teste de fumaça de ponta a ponta
-├── requirements.txt
-└── run.sh
+├── main.py                 API FastAPI e entrega do frontend
+├── xray_model.py           inferência DenseNet-121 e geração do Grad-CAM
+├── imaging.py              leitura e pré-processamento das radiografias
+├── overlay.py              composição do mapa de calor sobre a imagem
+├── index.html              estrutura da interface web
+├── styles.css              apresentação visual e responsividade
+├── app.js                  interação da interface e integração com a API
+├── data.js                 metadados do atlas visual
+├── assets/
+│   ├── chest-pa.jpg        radiografia posteroanterior
+│   ├── chest-lateral.jpg   radiografia lateral
+│   └── thorax-anatomy.gif  referência anatômica
+├── tests/
+│   └── data.test.js        testes dos dados do atlas
+└── smoke_test.py           teste ponta a ponta da API e do modelo
 ```
 
-Fluxo de uma requisição:
+### Backend
 
-1. Upload da imagem para `POST /analyze`.
-2. `imaging.load_image` roteia por extensão (DICOM ou raster) e devolve a
-   matriz 2D em tons de cinza.
-3. `imaging.preprocess` normaliza para a escala do torchxrayvision, faz o
-   center-crop e redimensiona para 224x224.
-4. `model.predict` roda a inferência multirrótulo (18 patologias).
-5. `model.top_target` escolhe a patologia do grupo pneumônico com maior
-   probabilidade e `model.gradcam` gera o mapa de calor para essa classe.
-6. A resposta traz o ranking completo, os limiares de operação e as duas
-   imagens (original e sobreposição) em base64.
+O `main.py` expõe os endpoints:
 
-## Como executar
+- `GET /health`: carrega o modelo e informa seu estado.
+- `POST /analyze`: recebe uma imagem, executa o pipeline e retorna as previsões,
+  a radiografia processada e o mapa de atenção.
+- `GET /`: entrega a interface web.
 
-Requer Python 3.10+.
+O processamento é dividido em módulos:
 
-```bash
-python -m venv .venv
-# Windows: .venv\Scripts\python -m pip install -r requirements.txt
-# Linux/macOS: .venv/bin/python -m pip install -r requirements.txt
-npm start
+1. `imaging.py` converte a entrada em uma matriz bidimensional.
+2. `xray_model.py` executa a classificação e produz o Grad-CAM.
+3. `overlay.py` combina a radiografia com o mapa de calor.
+4. `main.py` organiza o resultado e o devolve em JSON.
+
+### Frontend
+
+A interface utiliza HTML, CSS e JavaScript sem framework. Ela contém:
+
+- um atlas com incidências PA, lateral e referência anatômica;
+- upload de arquivos PNG, JPG e DICOM;
+- envio da radiografia para a API;
+- comparação entre a imagem processada e o Grad-CAM;
+- ranking das probabilidades e indicação dos limiares de operação.
+
+## Técnicas utilizadas
+
+### Classificação multirrótulo
+
+Uma radiografia pode apresentar mais de um padrão simultaneamente. Por isso, o
+projeto utiliza classificação multirrótulo em vez de escolher uma única classe
+ou desenhar caixas delimitadoras.
+
+O modelo calcula probabilidades para 18 padrões radiológicos, incluindo
+`Pneumonia`, `Consolidation`, `Infiltration`, `Lung Opacity`, `Pneumothorax`,
+`Effusion` e `Fibrosis`.
+
+### DenseNet-121
+
+A inferência utiliza a DenseNet-121 disponibilizada pelo
+`torchxrayvision`, pré-treinada em bases públicas de radiografias. Suas conexões
+densas favorecem o reaproveitamento de características visuais entre camadas,
+como texturas, opacidades e alterações estruturais.
+
+### Pré-processamento
+
+As imagens passam pelas seguintes etapas:
+
+1. leitura de PNG, JPG ou DICOM;
+2. conversão para tons de cinza;
+3. aplicação de `RescaleSlope` e `RescaleIntercept` em arquivos DICOM;
+4. inversão de imagens com interpretação `MONOCHROME1`;
+5. normalização para a escala esperada pelo modelo;
+6. recorte central;
+7. redimensionamento para `224 × 224`;
+8. conversão para tensor no formato `[1, 1, 224, 224]`.
+
+### Grad-CAM
+
+O Grad-CAM utiliza os gradientes da classe analisada sobre a última etapa
+convolucional da rede. Esses gradientes ponderam os mapas de características e
+produzem uma representação espacial das regiões que mais influenciaram a
+previsão.
+
+O resultado é normalizado, convertido em um mapa de cores e sobreposto à
+radiografia original. O mapa mostra a atenção do modelo, não a delimitação
+clínica de uma lesão.
+
+### Limiares de operação
+
+Cada probabilidade pode ser comparada ao `op_threshold` fornecido pelo modelo.
+Esse valor oferece contexto para a saída e evita interpretar toda probabilidade
+como um resultado binário automático.
+
+### Pipeline
+
+```text
+Upload
+  → leitura e normalização
+  → recorte e redimensionamento
+  → DenseNet-121
+  → probabilidades multirrótulo
+  → seleção do alvo
+  → Grad-CAM
+  → sobreposição do mapa de calor
+  → resposta da API
+  → visualização no navegador
 ```
 
-Abra `http://localhost:8000`. Na primeira análise, os pesos do modelo
-(~30 MB) são baixados automaticamente para `~/.torchxrayvision`.
+### Testes
 
-Teste rápido sem interface:
-
-```bash
-npm test
-```
-
-## Grupo pneumônico
-
-O modelo prevê 18 patologias. A interface destaca as diretamente ligadas ao
-quadro pneumônico: `Pneumonia`, `Consolidation`, `Infiltration` e
-`Lung Opacity`. O mapa de calor é ancorado na de maior probabilidade entre
-elas.
-
-## Limitações honestas
-
-- Os limiares de operação vêm do treino em bases estrangeiras; a calibração
-  não foi verificada em população brasileira.
-- Não há segmentação anatômica nem controle de qualidade de posicionamento
-  (AP/PA, rotação, exposição).
-- O Grad-CAM indica onde o modelo "olhou", o que não equivale a delimitação
-  clínica da lesão.
-- Sem validação prospectiva, sensibilidade/especificidade próprias ou
-  aprovação regulatória.
-
-## Caminhos de extensão
-
-- Fine-tuning em base brasileira (por exemplo, dados do próprio serviço) com
-  recalibração de limiares por curva de Youden.
-- Substituir o Grad-CAM por Grad-CAM++ ou por segmentação (nnU-Net) quando
-  houver máscaras.
-- Empacotar o modelo com ONNX Runtime ou TorchScript para inferência local em
-  dispositivo, aproximando-se da proposta de edge da demo original.
-- Endpoint de laudo estruturado alinhado a um agente interpretável, no espírito
-  do BRICS-PRIMA.
+Os testes JavaScript verificam a consistência dos estudos do atlas. O teste de
+fumaça em Python gera uma radiografia sintética, chama a API e valida o formato
+das previsões e das imagens produzidas pelo pipeline.
