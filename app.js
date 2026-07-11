@@ -237,6 +237,15 @@ function renderQuality(quality) {
   `;
 }
 
+async function studyToFile(study) {
+  const response = await fetch(study.image);
+  if (!response.ok) throw new Error(`Falha ao carregar ${study.title}.`);
+  const blob = await response.blob();
+  return new File([blob], study.image.split("/").at(-1), {
+    type: blob.type || "application/octet-stream",
+  });
+}
+
 document.querySelector("#pick-file").addEventListener("click", () => {
   fileInput.click();
 });
@@ -261,11 +270,7 @@ fileInput.addEventListener("change", () => {
 document.querySelector("#use-sample").addEventListener("click", async () => {
   const study = findStudy(selectedStudyId);
   status.textContent = `Preparando ${study.title}…`;
-  const response = await fetch(study.image);
-  const blob = await response.blob();
-  const file = new File([blob], study.image.split("/").at(-1), {
-    type: blob.type || "application/octet-stream",
-  });
+  const file = await studyToFile(study);
   analyzeFile(file);
 });
 
@@ -287,5 +292,77 @@ dropZone.addEventListener("drop", (event) => {
   const [file] = event.dataTransfer.files;
   if (file) analyzeFile(file);
 });
+
+const comparisonStudies = studies.filter((study) => study.id !== "anatomy");
+const comparisonA = document.querySelector("#comparison-a");
+const comparisonB = document.querySelector("#comparison-b");
+const comparisonOptions = comparisonStudies
+  .map((study) => `<option value="${study.id}">${study.title}</option>`)
+  .join("");
+comparisonA.innerHTML = comparisonOptions;
+comparisonB.innerHTML = comparisonOptions;
+comparisonB.value = comparisonStudies.find((study) => study.id === "lobar-pneumonia")?.id
+  ?? comparisonStudies[1].id;
+
+document.querySelector("#run-comparison").addEventListener("click", async () => {
+  const button = document.querySelector("#run-comparison");
+  const comparisonStatus = document.querySelector("#comparison-status");
+  const studyA = findStudy(comparisonA.value);
+  const studyB = findStudy(comparisonB.value);
+
+  if (studyA.id === studyB.id) {
+    comparisonStatus.textContent = "Escolha duas imagens diferentes.";
+    return;
+  }
+
+  button.disabled = true;
+  comparisonStatus.textContent = "Comparando respostas do modelo…";
+  try {
+    const [fileA, fileB] = await Promise.all([
+      studyToFile(studyA),
+      studyToFile(studyB),
+    ]);
+    const formData = new FormData();
+    formData.append("file_a", fileA);
+    formData.append("file_b", fileB);
+    const response = await fetch("/compare", { method: "POST", body: formData });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.detail ?? `HTTP ${response.status}`);
+    renderComparison(payload, studyA, studyB);
+    comparisonStatus.textContent = "Comparação concluída.";
+  } catch (error) {
+    comparisonStatus.textContent = `Não foi possível comparar: ${error.message}`;
+  } finally {
+    button.disabled = false;
+  }
+});
+
+function renderComparison(data, studyA, studyB) {
+  document.querySelector("#comparison-image-a").src = data.image_a;
+  document.querySelector("#comparison-image-b").src = data.image_b;
+  document.querySelector("#comparison-caption-a").textContent =
+    `${studyA.title} · qualidade ${data.quality_a.score}/100`;
+  document.querySelector("#comparison-caption-b").textContent =
+    `${studyB.title} · qualidade ${data.quality_b.score}/100`;
+  document.querySelector("#comparison-deltas").innerHTML = data.top_changes
+    .map((item) => {
+      const deltaPercent = item.delta * 100;
+      const width = Math.min(50, Math.abs(deltaPercent));
+      const direction = deltaPercent >= 0 ? "positive" : "negative";
+      const sign = deltaPercent > 0 ? "+" : "";
+      return `
+        <div class="delta-row">
+          <span>${item.pathology}</span>
+          <span class="delta-track">
+            <span class="delta-fill ${direction}" style="width:${width}%"></span>
+          </span>
+          <span class="delta-value">${sign}${deltaPercent.toFixed(1)} pp</span>
+        </div>
+      `;
+    })
+    .join("");
+  document.querySelector("#comparison-disclaimer").textContent = data.disclaimer;
+  document.querySelector("#comparison-results").hidden = false;
+}
 
 renderStudy(studies[0].id, false);

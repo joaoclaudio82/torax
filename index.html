@@ -28,6 +28,7 @@
       </a>
       <nav aria-label="Navegação principal">
         <a href="#biblioteca">Biblioteca</a>
+        <a href="#comparar">Comparar</a>
         <a href="#analisar">Análise</a>
       </nav>
       <span class="environment-status"><i></i> Modelo disponível</span>
@@ -114,6 +115,51 @@
             </div>
           </div>
         </article>
+      </section>
+
+      <section class="comparison" id="comparar">
+        <div class="section-header">
+          <div>
+            <span class="section-label">Comparação A/B</span>
+            <h2>Compare respostas do modelo</h2>
+          </div>
+          <p>
+            Selecione duas referências do acervo para observar como as
+            probabilidades variam entre imagens diferentes.
+          </p>
+        </div>
+        <div class="comparison-controls">
+          <label>
+            <span>Imagem A</span>
+            <select id="comparison-a"></select>
+          </label>
+          <span class="comparison-versus">versus</span>
+          <label>
+            <span>Imagem B</span>
+            <select id="comparison-b"></select>
+          </label>
+          <button id="run-comparison" type="button" class="primary-button">
+            Comparar imagens
+          </button>
+        </div>
+        <p id="comparison-status" class="comparison-status" role="status"></p>
+        <div id="comparison-results" class="comparison-results" hidden>
+          <div class="comparison-images">
+            <figure>
+              <figcaption id="comparison-caption-a"></figcaption>
+              <img id="comparison-image-a" alt="Primeira radiografia processada" />
+            </figure>
+            <figure>
+              <figcaption id="comparison-caption-b"></figcaption>
+              <img id="comparison-image-b" alt="Segunda radiografia processada" />
+            </figure>
+          </div>
+          <div class="delta-panel">
+            <h3>Maiores variações do modelo</h3>
+            <div id="comparison-deltas"></div>
+            <p id="comparison-disclaimer"></p>
+          </div>
+        </div>
       </section>
 
       <section class="analyzer" id="analisar">
