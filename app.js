@@ -1,4 +1,5 @@
 import { findStudy, studies } from "./data.js";
+import { createImageFilter, DEFAULT_VIEW, normalizeView } from "./viewer.js";
 
 const buttonsContainer = document.querySelector("#study-buttons");
 const image = document.querySelector("#study-image");
@@ -12,6 +13,28 @@ const license = document.querySelector("#study-license");
 const dialog = document.querySelector("#image-dialog");
 const dialogImage = document.querySelector("#dialog-image");
 let selectedStudyId = studies[0].id;
+let viewerState = { ...DEFAULT_VIEW };
+
+function applyViewerState() {
+  viewerState = normalizeView(viewerState);
+  const filter = createImageFilter(viewerState);
+  image.style.filter = filter;
+  dialogImage.style.filter = filter;
+  document.querySelector("#brightness-control").value = viewerState.brightness;
+  document.querySelector("#contrast-control").value = viewerState.contrast;
+  document.querySelector("#brightness-value").textContent =
+    `${viewerState.brightness}%`;
+  document.querySelector("#contrast-value").textContent =
+    `${viewerState.contrast}%`;
+  const invertButton = document.querySelector("#invert-control");
+  invertButton.setAttribute("aria-pressed", String(viewerState.inverted));
+  invertButton.classList.toggle("active", viewerState.inverted);
+}
+
+function resetViewer() {
+  viewerState = { ...DEFAULT_VIEW };
+  applyViewerState();
+}
 
 function renderButtons(activeId) {
   buttonsContainer.innerHTML = studies
@@ -37,6 +60,7 @@ function renderButtons(activeId) {
 function renderStudy(id, animate = true) {
   const study = findStudy(id);
   selectedStudyId = study.id;
+  resetViewer();
 
   if (animate) image.classList.add("changing");
 
@@ -80,6 +104,23 @@ document.querySelector("#close-dialog").addEventListener("click", () => {
 dialog.addEventListener("click", (event) => {
   if (event.target === dialog) dialog.close();
 });
+
+document.querySelector("#brightness-control").addEventListener("input", (event) => {
+  viewerState.brightness = Number(event.target.value);
+  applyViewerState();
+});
+
+document.querySelector("#contrast-control").addEventListener("input", (event) => {
+  viewerState.contrast = Number(event.target.value);
+  applyViewerState();
+});
+
+document.querySelector("#invert-control").addEventListener("click", () => {
+  viewerState.inverted = !viewerState.inverted;
+  applyViewerState();
+});
+
+document.querySelector("#reset-viewer").addEventListener("click", resetViewer);
 
 const dropZone = document.querySelector("#drop-zone");
 const fileInput = document.querySelector("#analysis-file");

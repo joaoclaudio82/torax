@@ -68,6 +68,34 @@
                 Ampliar
               </button>
             </div>
+            <div class="viewer-controls" aria-label="Ajustes de visualização">
+              <label>
+                <span>Brilho <output id="brightness-value">100%</output></span>
+                <input
+                  id="brightness-control"
+                  type="range"
+                  min="50"
+                  max="150"
+                  value="100"
+                  aria-label="Brilho da radiografia"
+                />
+              </label>
+              <label>
+                <span>Contraste <output id="contrast-value">100%</output></span>
+                <input
+                  id="contrast-control"
+                  type="range"
+                  min="50"
+                  max="200"
+                  value="100"
+                  aria-label="Contraste da radiografia"
+                />
+              </label>
+              <button id="invert-control" type="button" aria-pressed="false">
+                Inverter
+              </button>
+              <button id="reset-viewer" type="button">Restaurar</button>
+            </div>
           </div>
 
           <div class="study-details" aria-live="polite">
