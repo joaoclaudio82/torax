@@ -15,6 +15,80 @@ import torchxrayvision as xrv
 import skimage
 
 
+def assess_quality(arr2d: np.ndarray) -> dict:
+    """Calcula indicadores heurísticos de qualidade sem bloquear a análise."""
+    if arr2d.ndim != 2 or arr2d.size == 0:
+        return {
+            "score": 0,
+            "level": "insufficient",
+            "warnings": ["A imagem não possui uma matriz bidimensional válida."],
+            "metrics": {},
+        }
+
+    height, width = arr2d.shape
+    finite = arr2d[np.isfinite(arr2d)].astype(np.float64)
+    if finite.size == 0:
+        return {
+            "score": 0,
+            "level": "insufficient",
+            "warnings": ["A imagem não contém valores de pixel válidos."],
+            "metrics": {"width": width, "height": height},
+        }
+
+    minimum = float(finite.min())
+    maximum = float(finite.max())
+    dynamic_range = maximum - minimum
+    normalized = (finite - minimum) / (dynamic_range + 1e-8)
+    contrast = float(normalized.std())
+    aspect_ratio = max(width, height) / max(1, min(width, height))
+    dark_clip = float(np.mean(normalized <= 0.01))
+    light_clip = float(np.mean(normalized >= 0.99))
+
+    score = 100
+    warnings = []
+    if min(width, height) < 128:
+        score -= 30
+        warnings.append("Resolução baixa; detalhes finos podem ser perdidos.")
+    if aspect_ratio > 2.2:
+        score -= 20
+        warnings.append("Proporção atípica; verifique recorte e orientação.")
+    if dynamic_range <= 1e-6:
+        score -= 70
+        warnings.append("Imagem praticamente uniforme, sem faixa dinâmica útil.")
+    elif contrast < 0.12:
+        score -= 20
+        warnings.append("Contraste global baixo.")
+    if dark_clip > 0.35:
+        score -= 10
+        warnings.append("Grande parte dos pixels está próxima do preto.")
+    if light_clip > 0.35:
+        score -= 10
+        warnings.append("Grande parte dos pixels está próxima do branco.")
+
+    score = max(0, score)
+    if score >= 85:
+        level = "good"
+    elif score >= 65:
+        level = "adequate"
+    else:
+        level = "attention"
+
+    return {
+        "score": score,
+        "level": level,
+        "warnings": warnings,
+        "metrics": {
+            "width": width,
+            "height": height,
+            "aspect_ratio": round(aspect_ratio, 2),
+            "contrast": round(contrast, 3),
+            "dynamic_range": round(dynamic_range, 2),
+            "dark_clip_percent": round(dark_clip * 100, 1),
+            "light_clip_percent": round(light_clip * 100, 1),
+        },
+    }
+
+
 def _load_dicom(data: bytes) -> np.ndarray:
     """Le um DICOM e devolve a matriz de pixels em float, ja tratando
     inclinacao/interceptacao e a inversao de MONOCHROME1."""

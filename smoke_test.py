@@ -39,6 +39,8 @@ def test_analyze():
     data = r.json()
     assert "predictions" in data and len(data["predictions"]) >= 10
     assert data["image_overlay"].startswith("data:image/png;base64,")
+    assert 0 <= data["input_quality"]["score"] <= 100
+    assert "metrics" in data["input_quality"]
     assert data["target_pathology"] in [p["pathology"] for p in data["predictions"]]
     top = data["predictions"][0]
     print("target:", data["target_pathology"])

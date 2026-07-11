@@ -113,6 +113,7 @@ async function analyzeFile(file) {
 function renderAnalysis(data) {
   document.querySelector("#result-original").src = data.image_original;
   document.querySelector("#result-overlay").src = data.image_overlay;
+  renderQuality(data.input_quality);
   const target = data.predictions.find(
     (prediction) => prediction.pathology === data.target_pathology,
   );
@@ -141,6 +142,41 @@ function renderAnalysis(data) {
     .join("");
   results.hidden = false;
   results.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function renderQuality(quality) {
+  const panel = document.querySelector("#quality-panel");
+  if (!quality) {
+    panel.hidden = true;
+    return;
+  }
+
+  const levelLabels = {
+    good: "Boa",
+    adequate: "Adequada",
+    attention: "Requer atenção",
+    insufficient: "Insuficiente",
+  };
+  const warnings = quality.warnings.length
+    ? `<ul>${quality.warnings.map((warning) => `<li>${warning}</li>`).join("")}</ul>`
+    : "<p>Nenhum alerta heurístico identificado.</p>";
+  const metrics = quality.metrics;
+
+  panel.hidden = false;
+  panel.innerHTML = `
+    <div class="quality-score quality-${quality.level}">
+      <strong>${quality.score}</strong><span>/ 100</span>
+    </div>
+    <div class="quality-summary">
+      <div><strong>Qualidade de entrada: ${levelLabels[quality.level]}</strong></div>
+      ${warnings}
+    </div>
+    <dl class="quality-metrics">
+      <div><dt>Dimensões</dt><dd>${metrics.width ?? "—"} × ${metrics.height ?? "—"}</dd></div>
+      <div><dt>Contraste</dt><dd>${metrics.contrast ?? "—"}</dd></div>
+      <div><dt>Proporção</dt><dd>${metrics.aspect_ratio ?? "—"}</dd></div>
+    </dl>
+  `;
 }
 
 document.querySelector("#pick-file").addEventListener("click", () => {

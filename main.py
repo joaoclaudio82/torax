@@ -28,6 +28,33 @@ app.add_middleware(
 )
 
 PROJECT_DIR = os.path.dirname(__file__)
+MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+SUPPORTED_EXTENSIONS = (".png", ".jpg", ".jpeg", ".dcm", ".dicom")
+SUPPORTED_CONTENT_TYPES = {
+    "image/png",
+    "image/jpeg",
+    "application/dicom",
+    "application/octet-stream",
+}
+
+
+def _validate_upload(file: UploadFile, data: bytes) -> None:
+    filename = (file.filename or "").lower()
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="Arquivo excede o limite de 15 MB.",
+        )
+    if not filename.endswith(SUPPORTED_EXTENSIONS):
+        raise HTTPException(
+            status_code=415,
+            detail="Formato não suportado. Envie PNG, JPG ou DICOM.",
+        )
+    if file.content_type and file.content_type not in SUPPORTED_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail="Tipo de conteúdo não suportado.",
+        )
 
 
 @app.get("/health")
@@ -42,9 +69,11 @@ async def analyze(file: UploadFile = File(...)):
     data = await file.read()
     if not data:
         raise HTTPException(status_code=400, detail="Arquivo vazio.")
+    _validate_upload(file, data)
 
     try:
         raw = imaging.load_image(data, file.filename or "")
+        input_quality = imaging.assess_quality(raw)
         tensor, vis_u8 = imaging.preprocess(raw)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=422,
@@ -74,6 +103,7 @@ async def analyze(file: UploadFile = File(...)):
         ],
         "image_original": overlay.gray_to_b64(vis_u8),
         "image_overlay": overlay.make_overlay(vis_u8, cam),
+        "input_quality": input_quality,
         "disclaimer": (
             "Prototipo de pesquisa e ensino. Nao substitui avaliacao medica "
             "nem laudo radiologico. Nao usar em decisao clinica real."
