@@ -14,6 +14,8 @@ const dialog = document.querySelector("#image-dialog");
 const dialogImage = document.querySelector("#dialog-image");
 let selectedStudyId = studies[0].id;
 let viewerState = { ...DEFAULT_VIEW };
+let studyMode = false;
+let studyRevealed = false;
 
 function applyViewerState() {
   viewerState = normalizeView(viewerState);
@@ -79,6 +81,7 @@ function renderStudy(id, animate = true) {
         .join("");
       document.querySelector("#use-sample").textContent =
         `Analisar: ${study.title}`;
+      applyStudyMode(study);
       renderButtons(study.id);
       image.classList.remove("changing");
     },
@@ -88,7 +91,60 @@ function renderStudy(id, animate = true) {
 
 buttonsContainer.addEventListener("click", (event) => {
   const button = event.target.closest("[data-study]");
-  if (button) renderStudy(button.dataset.study);
+  if (button) {
+    studyRevealed = false;
+    renderStudy(button.dataset.study);
+  }
+});
+
+function applyStudyMode(study) {
+  const toggle = document.querySelector("#study-mode-toggle");
+  const panel = document.querySelector("#study-mode-panel");
+  toggle.setAttribute("aria-pressed", String(studyMode));
+  toggle.classList.toggle("active", studyMode);
+  panel.hidden = !studyMode;
+
+  if (!studyMode) return;
+  if (!studyRevealed) {
+    document.querySelector("#study-feedback").textContent = "";
+    title.textContent = "Qual é o principal padrão?";
+    subtitle.textContent = "Caso sem identificação";
+    badge.textContent = "Modo estudo";
+    description.textContent =
+      "Observe a radiografia, registre sua hipótese e depois revele a referência.";
+    observations.innerHTML = "";
+  }
+}
+
+const studyHypotheses = [
+  "Normal",
+  "Pneumonia",
+  "Consolidation",
+  "Pneumothorax",
+  "Effusion",
+  "Edema",
+  "Lung Opacity",
+  "Anatomia",
+];
+document.querySelector("#study-hypothesis").innerHTML = studyHypotheses
+  .map((hypothesis) => `<option value="${hypothesis}">${hypothesis}</option>`)
+  .join("");
+
+document.querySelector("#study-mode-toggle").addEventListener("click", () => {
+  studyMode = !studyMode;
+  studyRevealed = false;
+  renderStudy(selectedStudyId, false);
+});
+
+document.querySelector("#reveal-study").addEventListener("click", () => {
+  const study = findStudy(selectedStudyId);
+  const hypothesis = document.querySelector("#study-hypothesis").value;
+  const matched = study.learningTags.includes(hypothesis);
+  studyRevealed = true;
+  renderStudy(study.id, false);
+  document.querySelector("#study-feedback").textContent = matched
+    ? `Hipótese compatível com a referência: ${study.learningTags.join(", ")}.`
+    : `Referência educacional: ${study.learningTags.join(", ")}. Compare com sua hipótese (${hypothesis}).`;
 });
 
 document.querySelector("#zoom-button").addEventListener("click", () => {
@@ -292,6 +348,25 @@ dropZone.addEventListener("drop", (event) => {
   const [file] = event.dataTransfer.files;
   if (file) analyzeFile(file);
 });
+
+document
+  .querySelector("#save-systematic-review")
+  .addEventListener("click", () => {
+    const checked = [
+      ...document.querySelectorAll(".systematic-review input:checked"),
+    ].map((input) => input.value);
+    const reviewStatus = document.querySelector("#systematic-review-status");
+    if (!checked.length) {
+      reviewStatus.textContent = "Marque ao menos uma etapa revisada.";
+      return;
+    }
+    sessionStorage.setItem(
+      "thorax-systematic-review",
+      JSON.stringify({ checked, timestamp: new Date().toISOString() }),
+    );
+    reviewStatus.textContent =
+      `${checked.length} etapa(s) registrada(s) somente nesta sessão.`;
+  });
 
 const comparisonStudies = studies.filter((study) => study.id !== "anatomy");
 const comparisonA = document.querySelector("#comparison-a");

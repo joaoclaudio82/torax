@@ -16,6 +16,8 @@ test("cada estudo possui imagem, fonte e licença", () => {
     assert.match(study.source, /^https:\/\/commons\.wikimedia\.org\//);
     assert.ok(study.license);
     assert.ok(study.observations.length >= 3);
+    assert.ok(study.learningTags.length >= 1);
+    assert.ok(study.learningTags.every((tag) => typeof tag === "string"));
   }
 });
 

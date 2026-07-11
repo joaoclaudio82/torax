@@ -13,6 +13,7 @@ export const studies = [
       "Silhueta cardíaca sem aumento aparente",
       "Ângulos costofrênicos livres",
     ],
+    learningTags: ["Normal"],
     source:
       "https://commons.wikimedia.org/wiki/File:Normal_posteroanterior_(PA)_chest_radiograph_(X-ray).jpg",
     license: "CC0 1.0",
@@ -31,6 +32,7 @@ export const studies = [
       "Espaço retroesternal preservado",
       "Hemidiafragmas identificáveis",
     ],
+    learningTags: ["Normal"],
     source:
       "https://commons.wikimedia.org/wiki/File:Normal_lateral_chest_radiograph_(X-ray).jpg",
     license: "CC0 1.0",
@@ -49,6 +51,7 @@ export const studies = [
       "Coração projeta-se predominantemente à esquerda",
       "Costelas protegem os órgãos intratorácicos",
     ],
+    learningTags: ["Anatomia"],
     source:
       "https://commons.wikimedia.org/wiki/File:Heart-thorax-gray.gif",
     license: "Domínio público",
@@ -67,6 +70,7 @@ export const studies = [
       "Distribuição compatível com padrão lobar",
       "Exemplo para testar as classes Pneumonia e Consolidation",
     ],
+    learningTags: ["Pneumonia", "Consolidation"],
     source:
       "https://commons.wikimedia.org/wiki/File:X-ray_of_lobar_pneumonia.jpg",
     license: "CC0 1.0",
@@ -85,6 +89,7 @@ export const studies = [
       "Diferença de transparência entre os campos pulmonares",
       "Útil para inspeção visual, não para comparação quantitativa",
     ],
+    learningTags: ["Pneumonia"],
     source:
       "https://commons.wikimedia.org/wiki/File:Pneumonia_x-ray.jpg",
     license: "Domínio público",
@@ -103,6 +108,7 @@ export const studies = [
       "Achado mais evidente posteriormente na vista lateral",
       "Exemplo para testar a classe Pneumothorax",
     ],
+    learningTags: ["Pneumothorax"],
     source:
       "https://commons.wikimedia.org/wiki/File:Lateral_X-ray_of_pneumothorax_in_inspiration.jpg",
     license: "CC0 1.0",
@@ -121,6 +127,7 @@ export const studies = [
       "Redução da área pulmonar aerada",
       "Exemplo para testar a classe Effusion",
     ],
+    learningTags: ["Effusion"],
     source:
       "https://commons.wikimedia.org/wiki/File:Pleural_effusion.jpg",
     license: "Domínio público — CDC",
@@ -139,6 +146,7 @@ export const studies = [
       "Espessamento intersticial periférico",
       "Exemplo para testar Edema e Lung Opacity",
     ],
+    learningTags: ["Edema", "Lung Opacity"],
     source:
       "https://commons.wikimedia.org/wiki/File:AP_portable_CXR_of_a_patient_in_acute_pulmonary_oedema.jpg",
     license: "CC BY-SA 3.0",

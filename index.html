@@ -55,7 +55,16 @@
               <span class="section-label">Acervo</span>
               <h2>Imagens de referência</h2>
             </div>
-            <span class="count">8</span>
+            <div class="panel-actions">
+              <button
+                id="study-mode-toggle"
+                type="button"
+                aria-pressed="false"
+              >
+                Modo estudo
+              </button>
+              <span class="count">8</span>
+            </div>
           </div>
           <div id="study-buttons"></div>
         </aside>
@@ -100,6 +109,16 @@
           </div>
 
           <div class="study-details" aria-live="polite">
+            <div class="study-mode-panel" id="study-mode-panel" hidden>
+              <span class="section-label">Autoavaliação</span>
+              <p>Registre sua hipótese antes de revelar a referência.</p>
+              <label>
+                <span>Hipótese principal</span>
+                <select id="study-hypothesis"></select>
+              </label>
+              <button id="reveal-study" type="button">Revelar referência</button>
+              <div id="study-feedback" role="status"></div>
+            </div>
             <div class="details-header">
               <span id="study-subtitle" class="section-label"></span>
               <h2 id="study-title"></h2>
@@ -207,6 +226,24 @@
             </div>
           </aside>
         </div>
+
+        <fieldset class="systematic-review">
+          <legend>Leitura sistemática ABCDE</legend>
+          <p>Registre sua observação antes de consultar o resultado do modelo.</p>
+          <div class="abcde-grid">
+            <label><input type="checkbox" value="A — vias aéreas" /><strong>A</strong><span>Vias aéreas</span></label>
+            <label><input type="checkbox" value="B — pulmões e pleuras" /><strong>B</strong><span>Pulmões e pleuras</span></label>
+            <label><input type="checkbox" value="C — coração e mediastino" /><strong>C</strong><span>Coração e mediastino</span></label>
+            <label><input type="checkbox" value="D — diafragma" /><strong>D</strong><span>Diafragma</span></label>
+            <label><input type="checkbox" value="E — ossos e dispositivos" /><strong>E</strong><span>Ossos e dispositivos</span></label>
+          </div>
+          <div class="abcde-footer">
+            <button id="save-systematic-review" type="button">
+              Registrar leitura
+            </button>
+            <span id="systematic-review-status" role="status"></span>
+          </div>
+        </fieldset>
 
         <div class="analysis-results" id="analysis-results" hidden>
           <div class="results-heading">
