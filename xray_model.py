@@ -82,6 +82,34 @@ def gradcam(tensor: torch.Tensor, target_pathology: str) -> np.ndarray:
     return cam / (cam.max() + 1e-8)
 
 
+def cam_stats(cam: np.ndarray) -> dict:
+    """Resume a distribuição espacial da ativação sem inferência anatômica."""
+    normalized = np.clip(np.asarray(cam, dtype=np.float64), 0.0, 1.0)
+    total = float(normalized.sum())
+    height, width = normalized.shape
+
+    if total <= 1e-8:
+        centroid_x = centroid_y = 0.5
+    else:
+        yy, xx = np.mgrid[0:height, 0:width]
+        centroid_x = float((xx * normalized).sum() / total / max(1, width - 1))
+        centroid_y = float((yy * normalized).sum() / total / max(1, height - 1))
+
+    horizontal = "esquerda" if centroid_x < 0.4 else "direita" if centroid_x > 0.6 else "central"
+    vertical = "superior" if centroid_y < 0.4 else "inferior" if centroid_y > 0.6 else "média"
+
+    return {
+        "mean_activation": round(float(normalized.mean()), 4),
+        "p90_activation": round(float(np.percentile(normalized, 90)), 4),
+        "peak_activation": round(float(normalized.max()), 4),
+        "centroid": {
+            "x": round(centroid_x, 3),
+            "y": round(centroid_y, 3),
+        },
+        "visual_region": f"{vertical} {horizontal}",
+    }
+
+
 def top_target(probabilities: dict) -> str:
     """Escolhe a maior probabilidade do grupo pneumônico como alvo do mapa."""
     candidates = {

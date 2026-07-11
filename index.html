@@ -173,20 +173,38 @@
           <div class="quality-panel" id="quality-panel"></div>
           <div class="result-grid">
             <div class="result-images">
-              <figure>
-                <figcaption>Imagem processada</figcaption>
-                <img id="result-original" alt="Radiografia processada" />
-              </figure>
-              <figure>
-                <figcaption>Mapa de atenção Grad-CAM</figcaption>
-                <img id="result-overlay" alt="Mapa de atenção sobre a radiografia" />
+              <figure class="gradcam-figure">
+                <figcaption>Comparador de atenção Grad-CAM</figcaption>
+                <div class="gradcam-comparison">
+                  <img id="result-original" alt="Radiografia processada" />
+                  <img
+                    id="result-overlay"
+                    alt="Mapa de atenção sobre a radiografia"
+                  />
+                </div>
+                <label class="overlay-control">
+                  <span>Radiografia</span>
+                  <input
+                    id="overlay-opacity"
+                    type="range"
+                    min="0"
+                    max="100"
+                    value="65"
+                    aria-label="Opacidade do mapa Grad-CAM"
+                  />
+                  <span>Mapa de atenção</span>
+                </label>
               </figure>
             </div>
             <div class="predictions">
-              <h4>Principais probabilidades</h4>
+              <h4>Selecione a classe para explicar</h4>
               <div class="prediction-bars" id="prediction-bars"></div>
+              <p class="threshold-legend">
+                A marca vertical indica o limiar de operação do modelo.
+              </p>
             </div>
           </div>
+          <p class="result-disclaimer" id="result-disclaimer"></p>
         </div>
       </section>
     </main>

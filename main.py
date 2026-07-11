@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -65,7 +65,10 @@ def health():
 
 
 @app.post("/analyze")
-async def analyze(file: UploadFile = File(...)):
+async def analyze(
+    file: UploadFile = File(...),
+    target_pathology: str | None = Form(default=None),
+):
     data = await file.read()
     if not data:
         raise HTTPException(status_code=400, detail="Arquivo vazio.")
@@ -80,7 +83,12 @@ async def analyze(file: UploadFile = File(...)):
                             detail=f"Falha ao ler a imagem: {exc}")
 
     probs = xray_model.predict(tensor)
-    target = xray_model.top_target(probs)
+    if target_pathology and target_pathology not in probs:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Patologia-alvo desconhecida: {target_pathology}.",
+        )
+    target = target_pathology or xray_model.top_target(probs)
     cam = xray_model.gradcam(tensor, target)
 
     ranked = sorted(probs.items(), key=lambda kv: kv[1]["prob"], reverse=True)
@@ -104,6 +112,13 @@ async def analyze(file: UploadFile = File(...)):
         "image_original": overlay.gray_to_b64(vis_u8),
         "image_overlay": overlay.make_overlay(vis_u8, cam),
         "input_quality": input_quality,
+        "explainability": {
+            "target_pathology": target,
+            "cam_stats": xray_model.cam_stats(cam),
+            "note": (
+                "O mapa representa atenção do modelo e não delimita uma lesão."
+            ),
+        },
         "disclaimer": (
             "Prototipo de pesquisa e ensino. Nao substitui avaliacao medica "
             "nem laudo radiologico. Nao usar em decisao clinica real."

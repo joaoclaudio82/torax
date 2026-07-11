@@ -127,11 +127,17 @@ const fileInput = document.querySelector("#analysis-file");
 const status = document.querySelector("#analysis-status");
 const results = document.querySelector("#analysis-results");
 const actionButtons = document.querySelectorAll(".analysis-actions button");
+let currentAnalysisFile = null;
+let latestAnalysis = null;
 
-async function analyzeFile(file) {
+async function analyzeFile(file, targetPathology = null) {
+  currentAnalysisFile = file;
   const formData = new FormData();
   formData.append("file", file);
-  status.textContent = `Analisando ${file.name}… a primeira execução pode baixar o modelo.`;
+  if (targetPathology) formData.append("target_pathology", targetPathology);
+  status.textContent = targetPathology
+    ? `Gerando explicação para ${targetPathology}…`
+    : `Analisando ${file.name}… a primeira execução pode baixar o modelo.`;
   actionButtons.forEach((button) => {
     button.disabled = true;
   });
@@ -152,15 +158,19 @@ async function analyzeFile(file) {
 }
 
 function renderAnalysis(data) {
+  latestAnalysis = data;
   document.querySelector("#result-original").src = data.image_original;
   document.querySelector("#result-overlay").src = data.image_overlay;
+  document.querySelector("#result-overlay").style.opacity =
+    Number(document.querySelector("#overlay-opacity").value) / 100;
   renderQuality(data.input_quality);
   const target = data.predictions.find(
     (prediction) => prediction.pathology === data.target_pathology,
   );
+  const camStats = data.explainability?.cam_stats;
   document.querySelector("#target-result").innerHTML =
     `Alvo do mapa: <strong>${data.target_pathology}</strong> · ` +
-    `${(target.prob * 100).toFixed(1)}% de probabilidade do modelo`;
+    `${(target.prob * 100).toFixed(1)}% · atenção ${camStats?.visual_region ?? "não calculada"}`;
   document.querySelector("#prediction-bars").innerHTML = data.predictions
     .slice(0, 10)
     .map((prediction) => {
@@ -170,17 +180,24 @@ function renderAnalysis(data) {
           ? ""
           : `<span class="prediction-threshold" style="left:${prediction.op_threshold * 100}%"></span>`;
       return `
-        <div class="prediction-row ${prediction.in_pneumonia_group ? "group" : ""}">
+        <button
+          type="button"
+          class="prediction-row ${prediction.in_pneumonia_group ? "group" : ""} ${prediction.pathology === data.target_pathology ? "selected" : ""}"
+          data-pathology="${prediction.pathology}"
+          aria-pressed="${prediction.pathology === data.target_pathology}"
+        >
           <span>${prediction.pathology}</span>
           <span class="prediction-track">
             <span class="prediction-fill" style="width:${percent}%"></span>
             ${threshold}
           </span>
-          <span class="prediction-value">${percent}%</span>
-        </div>
+          <span class="prediction-value">${percent}%${prediction.above_threshold ? " ↑" : ""}</span>
+        </button>
       `;
     })
     .join("");
+  document.querySelector("#result-disclaimer").textContent =
+    data.explainability?.note ?? data.disclaimer;
   results.hidden = false;
   results.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
@@ -222,6 +239,19 @@ function renderQuality(quality) {
 
 document.querySelector("#pick-file").addEventListener("click", () => {
   fileInput.click();
+});
+
+document.querySelector("#overlay-opacity").addEventListener("input", (event) => {
+  document.querySelector("#result-overlay").style.opacity =
+    Number(event.target.value) / 100;
+});
+
+document.querySelector("#prediction-bars").addEventListener("click", (event) => {
+  const row = event.target.closest("[data-pathology]");
+  if (!row || !currentAnalysisFile || row.dataset.pathology === latestAnalysis?.target_pathology) {
+    return;
+  }
+  analyzeFile(currentAnalysisFile, row.dataset.pathology);
 });
 
 fileInput.addEventListener("change", () => {

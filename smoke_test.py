@@ -41,6 +41,8 @@ def test_analyze():
     assert data["image_overlay"].startswith("data:image/png;base64,")
     assert 0 <= data["input_quality"]["score"] <= 100
     assert "metrics" in data["input_quality"]
+    assert data["explainability"]["target_pathology"] == data["target_pathology"]
+    assert "visual_region" in data["explainability"]["cam_stats"]
     assert data["target_pathology"] in [p["pathology"] for p in data["predictions"]]
     top = data["predictions"][0]
     print("target:", data["target_pathology"])
@@ -48,7 +50,21 @@ def test_analyze():
     print("overlay bytes:", len(data["image_overlay"]))
 
 
+def test_explicit_gradcam_target():
+    png = synthetic_xray()
+    r = client.post(
+        "/analyze",
+        data={"target_pathology": "Effusion"},
+        files={"file": ("synthetic.png", png, "image/png")},
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["target_pathology"] == "Effusion"
+    assert data["explainability"]["target_pathology"] == "Effusion"
+
+
 if __name__ == "__main__":
     test_health()
     test_analyze()
+    test_explicit_gradcam_target()
     print("\nOK: pipeline completo executou.")
