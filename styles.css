@@ -30,6 +30,22 @@ body {
   font-size: 14px;
 }
 
+.skip-link {
+  padding: 9px 12px;
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  color: white;
+  border-radius: 3px;
+  background: var(--accent);
+  transform: translateY(-150%);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
 button,
 a {
   font: inherit;
@@ -117,6 +133,10 @@ nav a:hover {
   height: 7px;
   border-radius: 50%;
   background: #3d8f5d;
+}
+
+.environment-status.error i {
+  background: #b75b54;
 }
 
 main {
@@ -1446,12 +1466,17 @@ footer {
 
 @media (max-width: 760px) {
   .topbar {
+    height: auto;
+    min-height: 58px;
     padding: 0 16px;
     grid-template-columns: 1fr auto;
   }
 
   .topbar nav {
-    display: none;
+    height: 38px;
+    grid-column: 1 / -1;
+    gap: 20px;
+    overflow-x: auto;
   }
 
   .environment-status {
@@ -1575,5 +1600,19 @@ footer {
     align-items: flex-start;
     flex-direction: column;
     gap: 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
   }
 }

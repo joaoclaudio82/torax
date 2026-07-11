@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "start": ".venv\\Scripts\\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000",
-    "test": "node --test && .venv\\Scripts\\python.exe -m pytest smoke_test.py -q"
+    "test": "npm run test:full",
+    "test:fast": "node --test && .venv\\Scripts\\python.exe -m pytest test_api_errors.py test_comparison.py test_imaging_quality.py test_xray_model_stats.py -q",
+    "test:full": "npm run test:fast && .venv\\Scripts\\python.exe -m pytest smoke_test.py -q"
   }
 }

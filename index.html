@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#main-content">Pular para o conteúdo principal</a>
     <header class="topbar">
       <a class="brand" href="#biblioteca" aria-label="Thorax, página inicial">
         <span class="brand-mark" aria-hidden="true">
@@ -32,10 +33,16 @@
         <a href="#analisar">Análise</a>
         <a href="#historico">Histórico</a>
       </nav>
-      <span class="environment-status"><i></i> Modelo disponível</span>
+      <span
+        class="environment-status"
+        id="model-status"
+        aria-live="polite"
+      >
+        <i></i><span>Verificando modelo…</span>
+      </span>
     </header>
 
-    <main>
+    <main id="main-content">
       <section class="page-header" id="biblioteca">
         <div>
           <span class="section-label">Ferramenta educacional</span>
@@ -43,9 +50,9 @@
           <p>Consulte o acervo e envie uma imagem para classificação experimental.</p>
         </div>
         <dl class="summary" aria-label="Resumo do sistema">
-          <div><dt>Imagens</dt><dd>8</dd></div>
-          <div><dt>Classes</dt><dd>18</dd></div>
-          <div><dt>Modelo</dt><dd>DenseNet-121</dd></div>
+          <div><dt>Imagens</dt><dd id="image-count">—</dd></div>
+          <div><dt>Classes</dt><dd id="class-count">—</dd></div>
+          <div><dt>Modelo</dt><dd id="model-name">Carregando</dd></div>
         </dl>
       </section>
 
@@ -64,7 +71,7 @@
               >
                 Modo estudo
               </button>
-              <span class="count">8</span>
+              <span class="count" id="study-count">—</span>
             </div>
           </div>
           <div id="study-buttons"></div>

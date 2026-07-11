@@ -23,6 +23,29 @@ let viewerState = { ...DEFAULT_VIEW };
 let studyMode = false;
 let studyRevealed = false;
 
+async function initOperationalStatus() {
+  document.querySelector("#image-count").textContent = studies.length;
+  document.querySelector("#study-count").textContent = studies.length;
+  const modelStatus = document.querySelector("#model-status");
+
+  try {
+    const response = await fetch("/health");
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const health = await response.json();
+    document.querySelector("#class-count").textContent = health.pathologies;
+    document.querySelector("#model-name").textContent = "DenseNet-121";
+    modelStatus.querySelector("span").textContent =
+      `Modelo disponível · ${health.pathologies} classes`;
+    modelStatus.classList.remove("error");
+    modelStatus.classList.add("ready");
+  } catch {
+    document.querySelector("#class-count").textContent = "—";
+    document.querySelector("#model-name").textContent = "Indisponível";
+    modelStatus.querySelector("span").textContent = "Modelo indisponível";
+    modelStatus.classList.add("error");
+  }
+}
+
 function applyViewerState() {
   viewerState = normalizeView(viewerState);
   const filter = createImageFilter(viewerState);
@@ -101,6 +124,22 @@ buttonsContainer.addEventListener("click", (event) => {
     studyRevealed = false;
     renderStudy(button.dataset.study);
   }
+});
+
+buttonsContainer.addEventListener("keydown", (event) => {
+  if (!["ArrowDown", "ArrowUp"].includes(event.key)) return;
+  const buttons = [...buttonsContainer.querySelectorAll("[data-study]")];
+  const currentIndex = buttons.indexOf(document.activeElement);
+  if (currentIndex < 0) return;
+  event.preventDefault();
+  const direction = event.key === "ArrowDown" ? 1 : -1;
+  const nextIndex = (currentIndex + direction + buttons.length) % buttons.length;
+  const nextId = buttons[nextIndex].dataset.study;
+  studyRevealed = false;
+  renderStudy(nextId);
+  window.setTimeout(() => {
+    buttonsContainer.querySelector(`[data-study="${nextId}"]`)?.focus();
+  }, 180);
 });
 
 function applyStudyMode(study) {
@@ -577,4 +616,5 @@ document.querySelector("#export-latest").addEventListener("click", () => {
 });
 
 renderHistory();
+initOperationalStatus();
 renderStudy(studies[0].id, false);
