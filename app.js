@@ -1,4 +1,10 @@
 import { findStudy, studies } from "./data.js";
+import {
+  addHistoryEntry,
+  clearHistory,
+  createEducationalReport,
+  readHistory,
+} from "./history.js";
 import { createImageFilter, DEFAULT_VIEW, normalizeView } from "./viewer.js";
 
 const buttonsContainer = document.querySelector("#study-buttons");
@@ -202,7 +208,7 @@ async function analyzeFile(file, targetPathology = null) {
     const response = await fetch("/analyze", { method: "POST", body: formData });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.detail ?? `HTTP ${response.status}`);
-    renderAnalysis(payload);
+    renderAnalysis(payload, { saveToHistory: !targetPathology });
     status.textContent = "Análise concluída.";
   } catch (error) {
     status.textContent = `Não foi possível analisar: ${error.message}`;
@@ -213,7 +219,7 @@ async function analyzeFile(file, targetPathology = null) {
   }
 }
 
-function renderAnalysis(data) {
+function renderAnalysis(data, { saveToHistory = false } = {}) {
   latestAnalysis = data;
   document.querySelector("#result-original").src = data.image_original;
   document.querySelector("#result-overlay").src = data.image_overlay;
@@ -256,6 +262,7 @@ function renderAnalysis(data) {
     data.explainability?.note ?? data.disclaimer;
   results.hidden = false;
   results.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  if (saveToHistory) saveAnalysisToHistory(data);
 }
 
 function renderQuality(quality) {
@@ -290,6 +297,106 @@ function renderQuality(quality) {
       <div><dt>Contraste</dt><dd>${metrics.contrast ?? "—"}</dd></div>
       <div><dt>Proporção</dt><dd>${metrics.aspect_ratio ?? "—"}</dd></div>
     </dl>
+  `;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+async function createThumbnail(dataUrl) {
+  return new Promise((resolve) => {
+    const source = new Image();
+    source.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 96;
+      canvas.height = 96;
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#111619";
+      context.fillRect(0, 0, 96, 96);
+      const scale = Math.min(96 / source.width, 96 / source.height);
+      const width = source.width * scale;
+      const height = source.height * scale;
+      context.drawImage(source, (96 - width) / 2, (96 - height) / 2, width, height);
+      resolve(canvas.toDataURL("image/jpeg", 0.65));
+    };
+    source.onerror = () => resolve("");
+    source.src = dataUrl;
+  });
+}
+
+async function saveAnalysisToHistory(data) {
+  const thumbnail = await createThumbnail(data.image_original);
+  const entry = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    timestamp: new Date().toISOString(),
+    filename: currentAnalysisFile?.name ?? "imagem-sem-nome",
+    targetPathology: data.target_pathology,
+    topPredictions: data.predictions.slice(0, 5).map((prediction) => ({
+      pathology: prediction.pathology,
+      probability: prediction.prob,
+      aboveThreshold: prediction.above_threshold,
+    })),
+    quality: data.input_quality,
+    explainability: data.explainability,
+    thumbnail,
+  };
+  addHistoryEntry(entry);
+  renderHistory(entry.id);
+}
+
+function renderHistory(selectedId = null) {
+  const entries = readHistory();
+  const list = document.querySelector("#history-list");
+  document.querySelector("#export-latest").disabled = entries.length === 0;
+
+  if (!entries.length) {
+    list.innerHTML = '<p class="history-empty">Nenhuma análise salva localmente.</p>';
+    document.querySelector("#history-preview").innerHTML =
+      "<p>Execute uma análise para criar o primeiro registro local.</p>";
+    return;
+  }
+
+  list.innerHTML = entries
+    .map(
+      (entry) => `
+        <button type="button" class="history-item" data-history-id="${entry.id}">
+          ${entry.thumbnail ? `<img src="${entry.thumbnail}" alt="" />` : ""}
+          <span>
+            <strong>${escapeHtml(entry.filename)}</strong>
+            <small>${escapeHtml(entry.targetPathology)} · ${new Date(entry.timestamp).toLocaleString("pt-BR")}</small>
+          </span>
+        </button>
+      `,
+    )
+    .join("");
+  renderHistoryPreview(
+    entries.find((entry) => entry.id === selectedId) ?? entries[0],
+  );
+}
+
+function renderHistoryPreview(entry) {
+  const predictions = entry.topPredictions
+    .map(
+      (prediction) =>
+        `<li><span>${escapeHtml(prediction.pathology)}</span><strong>${(prediction.probability * 100).toFixed(1)}%</strong></li>`,
+    )
+    .join("");
+  document.querySelector("#history-preview").innerHTML = `
+    <div class="history-preview-header">
+      ${entry.thumbnail ? `<img src="${entry.thumbnail}" alt="" />` : ""}
+      <div>
+        <span class="section-label">Registro local</span>
+        <h3>${escapeHtml(entry.filename)}</h3>
+        <p>Alvo Grad-CAM: ${escapeHtml(entry.targetPathology)}</p>
+      </div>
+    </div>
+    <ul>${predictions}</ul>
+    <p class="history-quality">Qualidade de entrada: ${entry.quality?.score ?? "—"}/100</p>
   `;
 }
 
@@ -440,4 +547,34 @@ function renderComparison(data, studyA, studyB) {
   document.querySelector("#comparison-results").hidden = false;
 }
 
+document.querySelector("#history-list").addEventListener("click", (event) => {
+  const item = event.target.closest("[data-history-id]");
+  if (!item) return;
+  const entry = readHistory().find(
+    (historyEntry) => historyEntry.id === item.dataset.historyId,
+  );
+  if (entry) renderHistoryPreview(entry);
+});
+
+document.querySelector("#clear-history").addEventListener("click", () => {
+  clearHistory();
+  renderHistory();
+});
+
+document.querySelector("#export-latest").addEventListener("click", () => {
+  const [latest] = readHistory();
+  if (!latest) return;
+  const report = createEducationalReport(latest);
+  const blob = new Blob([JSON.stringify(report, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `thorax-relatorio-${latest.id}.json`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+});
+
+renderHistory();
 renderStudy(studies[0].id, false);

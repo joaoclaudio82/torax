@@ -30,6 +30,7 @@
         <a href="#biblioteca">Biblioteca</a>
         <a href="#comparar">Comparar</a>
         <a href="#analisar">Análise</a>
+        <a href="#historico">Histórico</a>
       </nav>
       <span class="environment-status"><i></i> Modelo disponível</span>
     </header>
@@ -288,6 +289,31 @@
             </div>
           </div>
           <p class="result-disclaimer" id="result-disclaimer"></p>
+        </div>
+      </section>
+
+      <section class="history-section" id="historico">
+        <div class="section-header">
+          <div>
+            <span class="section-label">Privado por padrão</span>
+            <h2>Histórico local</h2>
+          </div>
+          <p>
+            Até 10 análises ficam somente neste navegador, com miniaturas
+            reduzidas e sem envio adicional ao servidor.
+          </p>
+        </div>
+        <div class="history-toolbar">
+          <button id="export-latest" type="button" disabled>
+            Exportar último relatório
+          </button>
+          <button id="clear-history" type="button">Limpar histórico</button>
+        </div>
+        <div class="history-layout">
+          <div id="history-list" class="history-list"></div>
+          <div id="history-preview" class="history-preview">
+            <p>Execute uma análise para criar o primeiro registro local.</p>
+          </div>
         </div>
       </section>
     </main>

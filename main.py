@@ -188,7 +188,7 @@ app.mount("/assets", StaticFiles(directory=os.path.join(PROJECT_DIR, "assets")),
 @app.get("/{filename:path}")
 def frontend_file(filename: str):
     """Serve os arquivos estáticos do protótipo sem expor arquivos Python."""
-    allowed = {"app.js", "data.js", "styles.css", "viewer.js"}
+    allowed = {"app.js", "data.js", "history.js", "styles.css", "viewer.js"}
     if filename not in allowed:
         raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
     return FileResponse(os.path.join(PROJECT_DIR, filename))
