@@ -19,8 +19,11 @@ torax/
 ├── app.js                  interação da interface e integração com a API
 ├── data.js                 metadados do atlas visual
 ├── assets/
-│   ├── chest-pa.jpg        radiografia posteroanterior
-│   ├── chest-lateral.jpg   radiografia lateral
+│   ├── chest-*.jpg         incidências de referência
+│   ├── *pneumonia*.jpg     exemplos de pneumonia
+│   ├── pneumothorax-*.jpg  exemplo de pneumotórax
+│   ├── pleural-*.jpg       exemplo de derrame pleural
+│   ├── pulmonary-*.jpg     exemplo de edema pulmonar
 │   └── thorax-anatomy.gif  referência anatômica
 ├── tests/
 │   └── data.test.js        testes dos dados do atlas

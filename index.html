@@ -3,120 +3,178 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Atlas visual e protótipo de análise de radiografias do tórax." />
-    <title>Thorax — Atlas visual</title>
+    <meta
+      name="description"
+      content="Biblioteca e protótipo educacional para análise de radiografias de tórax."
+    />
+    <title>Thorax — Análise de radiografias</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Manrope:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href="#" aria-label="Thorax, página inicial">
+      <a class="brand" href="#biblioteca" aria-label="Thorax, página inicial">
         <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 32 32"><path d="M16 5v22M12 8c-5 1-8 5-8 10 0 4 2 7 6 8 2 0 3-2 3-4V10c0-2 0-2-1-2Zm8 0c5 1 8 5 8 10 0 4-2 7-6 8-2 0-3-2-3-4V10c0-2 0-2 1-2Z" /></svg>
+          <svg viewBox="0 0 32 32">
+            <path d="M16 5v22M12 8c-5 1-8 5-8 10 0 4 2 7 6 8 2 0 3-2 3-4V10c0-2 0-2-1-2Zm8 0c5 1 8 5 8 10 0 4-2 7-6 8-2 0-3-2-3-4V10c0-2 0-2 1-2Z" />
+          </svg>
         </span>
-        <span>THORAX</span>
+        <span>Thorax</span>
       </a>
       <nav aria-label="Navegação principal">
-        <a class="active" href="#explorar">Explorar</a>
-        <a href="#analisar">Analisar</a>
-        <a href="#sobre">Sobre</a>
+        <a href="#biblioteca">Biblioteca</a>
+        <a href="#analisar">Análise</a>
       </nav>
-      <span class="educational-pill">Conteúdo educativo</span>
+      <span class="environment-status"><i></i> Modelo disponível</span>
     </header>
 
     <main>
-      <section class="hero" id="explorar">
-        <div class="eyebrow"><span></span> Atlas visual interativo</div>
-        <h1>Veja o tórax por<br /><em>uma nova perspectiva.</em></h1>
-        <p>Explore incidências radiográficas e relações anatômicas em uma experiência visual clara, focada e acessível.</p>
-        <div class="hero-stats" aria-label="Resumo do acervo">
-          <div><strong>03</strong><span>estudos visuais</span></div>
-          <div><strong>18</strong><span>classes no modelo</span></div>
-          <div><strong>100%</strong><span>fontes abertas</span></div>
+      <section class="page-header" id="biblioteca">
+        <div>
+          <span class="section-label">Ferramenta educacional</span>
+          <h1>Radiografias de tórax</h1>
+          <p>Consulte o acervo e envie uma imagem para classificação experimental.</p>
         </div>
+        <dl class="summary" aria-label="Resumo do sistema">
+          <div><dt>Imagens</dt><dd>8</dd></div>
+          <div><dt>Classes</dt><dd>18</dd></div>
+          <div><dt>Modelo</dt><dd>DenseNet-121</dd></div>
+        </dl>
       </section>
 
-      <section class="workspace" aria-label="Explorador de estudos">
+      <section class="workspace" aria-label="Biblioteca de radiografias">
         <aside class="study-list">
-          <div class="section-label">Estudos disponíveis</div>
-          <div id="study-buttons"></div>
-          <div class="tip">
-            <span aria-hidden="true">i</span>
-            <p><strong>Dica de navegação</strong>Selecione um estudo para atualizar a visualização.</p>
+          <div class="panel-heading">
+            <div>
+              <span class="section-label">Acervo</span>
+              <h2>Imagens de referência</h2>
+            </div>
+            <span class="count">8</span>
           </div>
+          <div id="study-buttons"></div>
         </aside>
 
         <article class="viewer">
           <div class="image-stage">
             <img id="study-image" src="" alt="" />
-            <div class="image-overlay">
+            <div class="image-toolbar">
               <span id="study-badge"></span>
-              <button id="zoom-button" type="button" aria-label="Ampliar imagem">＋</button>
+              <button id="zoom-button" type="button" aria-label="Ampliar imagem">
+                Ampliar
+              </button>
             </div>
           </div>
+
           <div class="study-details" aria-live="polite">
             <div class="details-header">
-              <div><span id="study-subtitle" class="section-label"></span><h2 id="study-title"></h2></div>
-              <a id="study-source" href="#" target="_blank" rel="noreferrer">Ver fonte ↗</a>
+              <span id="study-subtitle" class="section-label"></span>
+              <h2 id="study-title"></h2>
+              <p id="study-description"></p>
             </div>
-            <p id="study-description"></p>
+            <h3>Pontos de referência</h3>
             <ul id="study-observations"></ul>
-            <div class="license-line"><span>Licença</span><strong id="study-license"></strong></div>
+            <div class="metadata">
+              <div><span>Licença</span><strong id="study-license"></strong></div>
+              <a id="study-source" href="#" target="_blank" rel="noreferrer">
+                Abrir fonte original ↗
+              </a>
+            </div>
           </div>
         </article>
       </section>
 
       <section class="analyzer" id="analisar">
-        <div class="analyzer-intro">
-          <span class="section-label">DenseNet-121 + Grad-CAM</span>
-          <h2>Experimente o protótipo de análise.</h2>
-          <p>Envie uma radiografia ou use a imagem PA do acervo. O modelo classifica 18 padrões e gera um mapa das regiões que mais influenciaram o resultado.</p>
-          <div class="warning"><strong>Aviso:</strong> pesquisa e ensino apenas. Não é dispositivo médico e não deve orientar diagnóstico ou decisão clínica.</div>
+        <div class="section-header">
+          <div>
+            <span class="section-label">Classificação experimental</span>
+            <h2>Analisar radiografia</h2>
+          </div>
+          <p>
+            O modelo estima padrões estatísticos e produz um mapa Grad-CAM.
+            O resultado não representa diagnóstico ou laudo.
+          </p>
         </div>
 
-        <div class="analysis-panel">
+        <div class="analysis-layout">
           <div class="drop-zone" id="drop-zone">
-            <div class="drop-icon">⌁</div>
-            <strong>Arraste uma radiografia aqui</strong>
-            <span>PNG, JPG ou DICOM</span>
-            <input type="file" id="analysis-file" accept=".png,.jpg,.jpeg,.dcm,.dicom,image/*" />
+            <div class="drop-icon" aria-hidden="true">↑</div>
+            <strong>Selecione ou arraste uma radiografia</strong>
+            <span>Formatos aceitos: PNG, JPG e DICOM</span>
+            <input
+              type="file"
+              id="analysis-file"
+              accept=".png,.jpg,.jpeg,.dcm,.dicom,image/*"
+            />
             <div class="analysis-actions">
-              <button type="button" id="pick-file">Selecionar arquivo</button>
-              <button type="button" id="use-sample">Usar imagem do acervo</button>
+              <button type="button" id="pick-file" class="primary-button">
+                Selecionar arquivo
+              </button>
+              <button type="button" id="use-sample" class="secondary-button">
+                Analisar imagem selecionada
+              </button>
             </div>
             <p id="analysis-status" role="status"></p>
           </div>
 
-          <div class="analysis-results" id="analysis-results" hidden>
-            <div class="result-images">
-              <figure><figcaption>Radiografia processada</figcaption><img id="result-original" alt="Radiografia processada" /></figure>
-              <figure><figcaption>Mapa de atenção Grad-CAM</figcaption><img id="result-overlay" alt="Mapa de atenção sobre a radiografia" /></figure>
+          <aside class="method-note">
+            <h3>Como funciona</h3>
+            <ol>
+              <li>A imagem é normalizada e redimensionada para 224 × 224.</li>
+              <li>A DenseNet-121 calcula probabilidades para 18 classes.</li>
+              <li>O Grad-CAM destaca as regiões que influenciaram o alvo.</li>
+            </ol>
+            <div class="warning">
+              Uso exclusivo para pesquisa e ensino. Não utilizar em decisões clínicas.
+            </div>
+          </aside>
+        </div>
+
+        <div class="analysis-results" id="analysis-results" hidden>
+          <div class="results-heading">
+            <div>
+              <span class="section-label">Resultado</span>
+              <h3>Análise concluída</h3>
             </div>
             <div class="target-result" id="target-result"></div>
-            <div class="prediction-bars" id="prediction-bars"></div>
+          </div>
+          <div class="result-grid">
+            <div class="result-images">
+              <figure>
+                <figcaption>Imagem processada</figcaption>
+                <img id="result-original" alt="Radiografia processada" />
+              </figure>
+              <figure>
+                <figcaption>Mapa de atenção Grad-CAM</figcaption>
+                <img id="result-overlay" alt="Mapa de atenção sobre a radiografia" />
+              </figure>
+            </div>
+            <div class="predictions">
+              <h4>Principais probabilidades</h4>
+              <div class="prediction-bars" id="prediction-bars"></div>
+            </div>
           </div>
         </div>
-      </section>
-
-      <section class="about" id="sobre">
-        <span class="section-label">Sobre o projeto</span>
-        <h2>Aprender começa por enxergar melhor.</h2>
-        <p>Este protótipo reúne material aberto para demonstração educacional. Os resultados do modelo são padrões estatísticos, não um laudo.</p>
       </section>
     </main>
 
     <dialog id="image-dialog">
-      <button id="close-dialog" type="button" aria-label="Fechar">×</button>
+      <div class="dialog-header">
+        <span>Visualização ampliada</span>
+        <button id="close-dialog" type="button" aria-label="Fechar">Fechar</button>
+      </div>
       <img id="dialog-image" src="" alt="" />
     </dialog>
 
     <footer>
-      <span>THORAX / 2026</span>
-      <span>Imagens: Wikimedia Commons</span>
-      <span>Uso exclusivamente educativo</span>
+      <span>Thorax · Protótipo educacional</span>
+      <span>Imagens de fontes abertas — Wikimedia Commons</span>
     </footer>
+
     <script type="module" src="app.js"></script>
   </body>
 </html>

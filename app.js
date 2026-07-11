@@ -11,6 +11,7 @@ const source = document.querySelector("#study-source");
 const license = document.querySelector("#study-license");
 const dialog = document.querySelector("#image-dialog");
 const dialogImage = document.querySelector("#dialog-image");
+let selectedStudyId = studies[0].id;
 
 function renderButtons(activeId) {
   buttonsContainer.innerHTML = studies
@@ -27,7 +28,6 @@ function renderButtons(activeId) {
             <strong>${study.title}</strong>
             <small>${study.subtitle}</small>
           </span>
-          <span class="study-arrow" aria-hidden="true">→</span>
         </button>
       `,
     )
@@ -36,6 +36,7 @@ function renderButtons(activeId) {
 
 function renderStudy(id, animate = true) {
   const study = findStudy(id);
+  selectedStudyId = study.id;
 
   if (animate) image.classList.add("changing");
 
@@ -52,6 +53,8 @@ function renderStudy(id, animate = true) {
       observations.innerHTML = study.observations
         .map((observation) => `<li>${observation}</li>`)
         .join("");
+      document.querySelector("#use-sample").textContent =
+        `Analisar: ${study.title}`;
       renderButtons(study.id);
       image.classList.remove("changing");
     },
@@ -149,10 +152,12 @@ fileInput.addEventListener("change", () => {
 });
 
 document.querySelector("#use-sample").addEventListener("click", async () => {
-  status.textContent = "Preparando a imagem do acervo…";
-  const response = await fetch(studies[0].image);
-  const file = new File([await response.blob()], "radiografia-pa.jpg", {
-    type: "image/jpeg",
+  const study = findStudy(selectedStudyId);
+  status.textContent = `Preparando ${study.title}…`;
+  const response = await fetch(study.image);
+  const blob = await response.blob();
+  const file = new File([blob], study.image.split("/").at(-1), {
+    type: blob.type || "application/octet-stream",
   });
   analyzeFile(file);
 });
