@@ -1,0 +1,14 @@
+services:
+  thorax:
+    build:
+      context: .
+    ports:
+      - "8000:8000"
+    environment:
+      THORAX_ALLOWED_ORIGINS: http://localhost:8000,http://127.0.0.1:8000
+    volumes:
+      - model-cache:/home/thorax/.torchxrayvision
+    restart: unless-stopped
+
+volumes:
+  model-cache:

@@ -89,9 +89,51 @@ def assess_quality(arr2d: np.ndarray) -> dict:
     }
 
 
-def _load_dicom(data: bytes) -> np.ndarray:
-    """Le um DICOM e devolve a matriz de pixels em float, ja tratando
-    inclinacao/interceptacao e a inversao de MONOCHROME1."""
+def _first_number(value) -> float | None:
+    if value is None:
+        return None
+    if not isinstance(value, (str, bytes)):
+        try:
+            value = value[0]
+        except (IndexError, TypeError):
+            pass
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_dicom_metadata(ds, window_applied: bool) -> dict:
+    """Expõe apenas campos técnicos sem identificadores do paciente."""
+    pixel_spacing = getattr(ds, "PixelSpacing", None)
+    spacing = None
+    if pixel_spacing is not None:
+        try:
+            spacing = [round(float(value), 4) for value in pixel_spacing[:2]]
+        except (TypeError, ValueError):
+            spacing = None
+
+    return {
+        "format": "DICOM",
+        "anonymized": True,
+        "rows": int(getattr(ds, "Rows", 0) or 0),
+        "columns": int(getattr(ds, "Columns", 0) or 0),
+        "modality": str(getattr(ds, "Modality", "") or ""),
+        "view_position": str(getattr(ds, "ViewPosition", "") or ""),
+        "body_part_examined": str(getattr(ds, "BodyPartExamined", "") or ""),
+        "photometric_interpretation": str(
+            getattr(ds, "PhotometricInterpretation", "") or ""
+        ),
+        "bits_stored": int(getattr(ds, "BitsStored", 0) or 0),
+        "pixel_spacing": spacing,
+        "window_center": _first_number(getattr(ds, "WindowCenter", None)),
+        "window_width": _first_number(getattr(ds, "WindowWidth", None)),
+        "window_applied": window_applied,
+    }
+
+
+def _load_dicom(data: bytes) -> tuple[np.ndarray, dict]:
+    """Lê DICOM, aplica rescale/window e devolve metadados técnicos seguros."""
     import pydicom
 
     ds = pydicom.dcmread(io.BytesIO(data), force=True)
@@ -101,26 +143,53 @@ def _load_dicom(data: bytes) -> np.ndarray:
     intercept = float(getattr(ds, "RescaleIntercept", 0.0) or 0.0)
     arr = arr * slope + intercept
 
+    window_center = _first_number(getattr(ds, "WindowCenter", None))
+    window_width = _first_number(getattr(ds, "WindowWidth", None))
+    window_applied = (
+        window_center is not None
+        and window_width is not None
+        and window_width > 1
+    )
+    if window_applied:
+        lower = window_center - window_width / 2
+        upper = window_center + window_width / 2
+        arr = np.clip(arr, lower, upper)
+
     # Em MONOCHROME1 o branco e o valor minimo; invertemos para ficar
     # coerente com radiografias comuns (osso claro sobre fundo escuro).
     if str(getattr(ds, "PhotometricInterpretation", "")).upper() == "MONOCHROME1":
         arr = arr.max() - arr
 
-    return arr
+    return arr, _safe_dicom_metadata(ds, window_applied)
 
 
-def _load_raster(data: bytes) -> np.ndarray:
-    """Le PNG/JPG e devolve matriz 2D em tons de cinza (uint agnostico)."""
-    img = Image.open(io.BytesIO(data)).convert("L")
-    return np.asarray(img).astype(np.float32)
+def _load_raster(data: bytes) -> tuple[np.ndarray, dict]:
+    """Lê PNG/JPG e devolve pixels e metadados técnicos mínimos."""
+    source = Image.open(io.BytesIO(data))
+    source_format = source.format or "RASTER"
+    img = source.convert("L")
+    return np.asarray(img).astype(np.float32), {
+        "format": source_format,
+        "anonymized": True,
+        "rows": img.height,
+        "columns": img.width,
+        "photometric_interpretation": "MONOCHROME2",
+        "window_applied": False,
+    }
 
 
-def load_image(data: bytes, filename: str) -> np.ndarray:
-    """Roteia por extensao e devolve a matriz 2D bruta em tons de cinza."""
+def load_image_with_metadata(data: bytes, filename: str) -> tuple[np.ndarray, dict]:
+    """Roteia por extensão e devolve pixels com metadados técnicos seguros."""
     name = (filename or "").lower()
     if name.endswith((".dcm", ".dicom")) or _looks_like_dicom(data):
         return _load_dicom(data)
     return _load_raster(data)
+
+
+def load_image(data: bytes, filename: str) -> np.ndarray:
+    """Compatibilidade: devolve apenas a matriz de pixels."""
+    image, _metadata = load_image_with_metadata(data, filename)
+    return image
 
 
 def _looks_like_dicom(data: bytes) -> bool:

@@ -7,6 +7,7 @@ Grad-CAM para indicar as regiões que mais influenciaram cada previsão.
 from __future__ import annotations
 
 import threading
+import math
 from functools import lru_cache
 
 import numpy as np
@@ -18,6 +19,17 @@ WEIGHTS = "densenet121-res224-all"
 PNEUMONIA_GROUP = ["Pneumonia", "Consolidation", "Infiltration", "Lung Opacity"]
 
 _lock = threading.Lock()
+
+
+def _binary_ambiguity(probability: float) -> float:
+    probability = min(1.0, max(0.0, probability))
+    if probability in (0.0, 1.0):
+        return 0.0
+    entropy = -(
+        probability * math.log2(probability)
+        + (1 - probability) * math.log2(1 - probability)
+    )
+    return round(entropy, 4)
 
 
 @lru_cache(maxsize=1)
@@ -42,8 +54,59 @@ def predict(tensor: torch.Tensor) -> dict:
         threshold = None
         if thresholds is not None and not np.isnan(float(thresholds[index])):
             threshold = float(thresholds[index])
-        result[name] = {"prob": probability, "op_threshold": threshold}
+        margin = probability - threshold if threshold is not None else None
+        if margin is None:
+            threshold_band = "unavailable"
+        elif margin >= 0.1:
+            threshold_band = "above"
+        elif margin <= -0.1:
+            threshold_band = "below"
+        else:
+            threshold_band = "borderline"
+        result[name] = {
+            "prob": probability,
+            "op_threshold": threshold,
+            "threshold_margin": margin,
+            "threshold_band": threshold_band,
+            "ambiguity": _binary_ambiguity(probability),
+        }
     return result
+
+
+def decision_context(probabilities: dict) -> dict:
+    """Contextualiza saídas sem tratá-las como confiança clínica."""
+    ranked = sorted(
+        probabilities.items(),
+        key=lambda item: item[1]["prob"],
+        reverse=True,
+    )
+    top_gap = (
+        ranked[0][1]["prob"] - ranked[1][1]["prob"]
+        if len(ranked) > 1
+        else 0.0
+    )
+    borderline = [
+        name
+        for name, values in probabilities.items()
+        if values.get("threshold_band") == "borderline"
+    ]
+    highest_ambiguity = sorted(
+        (
+            {"pathology": name, "ambiguity": values["ambiguity"]}
+            for name, values in probabilities.items()
+        ),
+        key=lambda item: item["ambiguity"],
+        reverse=True,
+    )[:3]
+    return {
+        "top_probability_gap": round(float(top_gap), 4),
+        "borderline_classes": borderline,
+        "highest_ambiguity": highest_ambiguity,
+        "note": (
+            "Ambiguidade e margem descrevem a saída matemática do modelo; "
+            "não representam certeza diagnóstica."
+        ),
+    }
 
 
 def gradcam(tensor: torch.Tensor, target_pathology: str) -> np.ndarray:

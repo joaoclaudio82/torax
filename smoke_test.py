@@ -41,8 +41,14 @@ def test_analyze():
     assert data["image_overlay"].startswith("data:image/png;base64,")
     assert 0 <= data["input_quality"]["score"] <= 100
     assert "metrics" in data["input_quality"]
+    assert data["image_metadata"]["format"] == "PNG"
+    assert data["image_metadata"]["anonymized"] is True
     assert data["explainability"]["target_pathology"] == data["target_pathology"]
     assert "visual_region" in data["explainability"]["cam_stats"]
+    assert "borderline_classes" in data["decision_context"]
+    assert all("ambiguity" in prediction for prediction in data["predictions"])
+    assert data["timings"]["total_ms"] >= data["timings"]["inference_ms"]
+    assert r.headers["x-request-id"]
     assert data["target_pathology"] in [p["pathology"] for p in data["predictions"]]
     top = data["predictions"][0]
     print("target:", data["target_pathology"])

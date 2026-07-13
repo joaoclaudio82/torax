@@ -21,6 +21,10 @@ torax/
 ├── data.js                 metadados do atlas visual
 ├── viewer.js               regras dos controles radiológicos
 ├── history.js              histórico privado e relatório educacional
+├── Dockerfile              imagem de execução sem privilégios
+├── docker-compose.yml      serviço e cache persistente do modelo
+├── scripts/                execução Python multiplataforma
+├── .github/workflows/      validação automática e build do container
 ├── assets/
 │   ├── chest-*.jpg         incidências de referência
 │   ├── *pneumonia*.jpg     exemplos de pneumonia
@@ -129,6 +133,20 @@ Cada probabilidade pode ser comparada ao `op_threshold` fornecido pelo modelo.
 Esse valor oferece contexto para a saída e evita interpretar toda probabilidade
 como um resultado binário automático.
 
+### Contexto de decisão
+
+Cada classe recebe a distância até seu limiar e uma ambiguidade matemática
+baseada na entropia binária. Classes próximas do limiar são apresentadas como
+limítrofes. Essas medidas contextualizam a saída numérica, mas não representam
+confiança clínica ou probabilidade diagnóstica.
+
+### DICOM e windowing
+
+O leitor aplica `RescaleSlope`, `RescaleIntercept`, `WindowCenter` e
+`WindowWidth` quando disponíveis, além de tratar `MONOCHROME1`. Apenas
+metadados técnicos permitidos são devolvidos; identificadores do paciente nunca
+entram na resposta da API.
+
 ### Comparação A/B
 
 Duas imagens passam pelo mesmo pré-processamento e pela mesma DenseNet-121. A
@@ -140,6 +158,19 @@ magnitude. Essa comparação descreve a resposta do modelo, não evolução clí
 O backend não armazena imagens ou resultados. O histórico usa `localStorage`,
 mantém no máximo dez registros com miniaturas reduzidas e permite exportar um
 JSON educacional sem incluir a imagem original.
+
+### Segurança e observabilidade
+
+A API valida extensão, MIME e assinatura binária, limita uploads, restringe
+CORS e adiciona CSP, identificador de requisição e cabeçalhos contra sniffing e
+iframes. Tempos de pré-processamento, inferência, Grad-CAM e requisição são
+medidos separadamente.
+
+### Infraestrutura
+
+O container executa como usuário sem privilégios e mantém o cache dos pesos em
+volume separado. O GitHub Actions compila o Python, executa a suíte rápida em
+Linux e verifica a construção da imagem Docker.
 
 ### Pipeline
 

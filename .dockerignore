@@ -1,0 +1,11 @@
+.git
+.github
+.venv
+__pycache__
+.pytest_cache
+*.pyc
+*.pyo
+torax.zip
+test_*.py
+smoke_test.py
+tests

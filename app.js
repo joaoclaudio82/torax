@@ -264,7 +264,9 @@ function renderAnalysis(data, { saveToHistory = false } = {}) {
   document.querySelector("#result-overlay").src = data.image_overlay;
   document.querySelector("#result-overlay").style.opacity =
     Number(document.querySelector("#overlay-opacity").value) / 100;
-  renderQuality(data.input_quality);
+  renderQuality(data.input_quality, data.image_metadata);
+  renderDecisionContext(data.decision_context);
+  renderPerformance(data.timings);
   const target = data.predictions.find(
     (prediction) => prediction.pathology === data.target_pathology,
   );
@@ -283,7 +285,7 @@ function renderAnalysis(data, { saveToHistory = false } = {}) {
       return `
         <button
           type="button"
-          class="prediction-row ${prediction.in_pneumonia_group ? "group" : ""} ${prediction.pathology === data.target_pathology ? "selected" : ""}"
+          class="prediction-row ${prediction.in_pneumonia_group ? "group" : ""} ${prediction.threshold_band ?? ""} ${prediction.pathology === data.target_pathology ? "selected" : ""}"
           data-pathology="${prediction.pathology}"
           aria-pressed="${prediction.pathology === data.target_pathology}"
         >
@@ -292,7 +294,7 @@ function renderAnalysis(data, { saveToHistory = false } = {}) {
             <span class="prediction-fill" style="width:${percent}%"></span>
             ${threshold}
           </span>
-          <span class="prediction-value">${percent}%${prediction.above_threshold ? " ↑" : ""}</span>
+          <span class="prediction-value">${percent}%${prediction.threshold_band === "borderline" ? " ≈" : prediction.above_threshold ? " ↑" : ""}</span>
         </button>
       `;
     })
@@ -304,7 +306,7 @@ function renderAnalysis(data, { saveToHistory = false } = {}) {
   if (saveToHistory) saveAnalysisToHistory(data);
 }
 
-function renderQuality(quality) {
+function renderQuality(quality, metadata = null) {
   const panel = document.querySelector("#quality-panel");
   if (!quality) {
     panel.hidden = true;
@@ -321,6 +323,15 @@ function renderQuality(quality) {
     ? `<ul>${quality.warnings.map((warning) => `<li>${warning}</li>`).join("")}</ul>`
     : "<p>Nenhum alerta heurístico identificado.</p>";
   const metrics = quality.metrics;
+  const dicomMetadata = metadata?.format === "DICOM"
+    ? `
+      <div class="dicom-metadata">
+        <span>DICOM técnico</span>
+        <strong>${metadata.view_position || "Posição não informada"} · ${metadata.photometric_interpretation}</strong>
+        <small>${metadata.window_applied ? `Window ${metadata.window_center}/${metadata.window_width} aplicado` : "Window não informado"}</small>
+      </div>
+    `
+    : "";
 
   panel.hidden = false;
   panel.innerHTML = `
@@ -335,6 +346,47 @@ function renderQuality(quality) {
       <div><dt>Dimensões</dt><dd>${metrics.width ?? "—"} × ${metrics.height ?? "—"}</dd></div>
       <div><dt>Contraste</dt><dd>${metrics.contrast ?? "—"}</dd></div>
       <div><dt>Proporção</dt><dd>${metrics.aspect_ratio ?? "—"}</dd></div>
+    </dl>
+    ${dicomMetadata}
+  `;
+}
+
+function renderDecisionContext(context) {
+  const panel = document.querySelector("#decision-panel");
+  if (!context) {
+    panel.hidden = true;
+    return;
+  }
+  const borderline = context.borderline_classes;
+  panel.hidden = false;
+  panel.innerHTML = `
+    <div>
+      <span class="section-label">Contexto da decisão</span>
+      <strong>${borderline.length} classe(s) próxima(s) do limiar</strong>
+      <p>${borderline.length ? borderline.join(", ") : "Nenhuma classe na faixa limítrofe."}</p>
+    </div>
+    <div>
+      <span>Separação entre as duas maiores probabilidades</span>
+      <strong>${(context.top_probability_gap * 100).toFixed(1)} pp</strong>
+    </div>
+    <p>${context.note}</p>
+  `;
+}
+
+function renderPerformance(timings) {
+  const panel = document.querySelector("#performance-panel");
+  if (!timings) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+  panel.innerHTML = `
+    <span>Tempo de processamento</span>
+    <dl>
+      <div><dt>Pré-processamento</dt><dd>${timings.preprocessing_ms} ms</dd></div>
+      <div><dt>Inferência</dt><dd>${timings.inference_ms} ms</dd></div>
+      <div><dt>Grad-CAM</dt><dd>${timings.gradcam_ms} ms</dd></div>
+      <div><dt>Total</dt><dd>${timings.total_ms} ms</dd></div>
     </dl>
   `;
 }
@@ -382,6 +434,7 @@ async function saveAnalysisToHistory(data) {
     })),
     quality: data.input_quality,
     explainability: data.explainability,
+    imageMetadata: data.image_metadata,
     thumbnail,
   };
   addHistoryEntry(entry);

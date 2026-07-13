@@ -36,6 +36,7 @@ export function createEducationalReport(entry) {
       target_pathology: entry.targetPathology,
       top_predictions: entry.topPredictions,
       input_quality: entry.quality,
+      image_metadata: entry.imageMetadata,
       explainability: entry.explainability,
     },
     disclaimer:
