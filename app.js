@@ -231,6 +231,44 @@ const actionButtons = document.querySelectorAll(".analysis-actions button");
 let currentAnalysisFile = null;
 let latestAnalysis = null;
 
+async function pollJob(jobId) {
+  const stageLabels = {
+    queued: "Na fila",
+    starting: "Iniciando",
+    preprocessing: "Pré-processando",
+    inference: "Inferência",
+    gradcam: "Grad-CAM",
+    stability: "Estabilidade",
+    finalizing: "Finalizando",
+    cache: "Cache",
+    done: "Concluído",
+    error: "Erro",
+  };
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const response = await fetch(`/jobs/${jobId}`);
+    const job = await response.json();
+    if (!response.ok) throw new Error(job.detail ?? `HTTP ${response.status}`);
+    const pct = Math.round((job.progress || 0) * 100);
+    const stage = stageLabels[job.stage] || job.stage;
+    status.textContent = `${stage}… ${pct}%`;
+    updateProgressBar(job.progress || 0, stage);
+    if (job.status === "completed") return job.result;
+    if (job.status === "failed") throw new Error(job.error || "Falha no job.");
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  }
+  throw new Error("Tempo esgotado aguardando a análise.");
+}
+
+function updateProgressBar(progress, stage) {
+  const wrap = document.querySelector("#analysis-progress");
+  const bar = document.querySelector("#analysis-progress-bar");
+  if (!wrap || !bar) return;
+  wrap.hidden = false;
+  bar.style.width = `${Math.max(4, Math.round(progress * 100))}%`;
+  wrap.setAttribute("aria-valuenow", String(Math.round(progress * 100)));
+  wrap.dataset.stage = stage || "";
+}
+
 async function analyzeFile(file, targetPathology = null) {
   currentAnalysisFile = file;
   const formData = new FormData();
@@ -244,19 +282,37 @@ async function analyzeFile(file, targetPathology = null) {
   actionButtons.forEach((button) => {
     button.disabled = true;
   });
+  updateProgressBar(0.05, "starting");
 
   try {
-    const response = await fetch("/analyze", { method: "POST", body: formData });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.detail ?? `HTTP ${response.status}`);
+    const useAsync = document.querySelector("#use-async-analyze")?.checked;
+    let payload;
+    if (useAsync) {
+      const started = await fetch("/analyze/async", {
+        method: "POST",
+        body: formData,
+      });
+      const jobInfo = await started.json();
+      if (!started.ok) throw new Error(jobInfo.detail ?? `HTTP ${started.status}`);
+      payload = await pollJob(jobInfo.job_id);
+    } else {
+      const response = await fetch("/analyze", { method: "POST", body: formData });
+      payload = await response.json();
+      if (!response.ok) throw new Error(payload.detail ?? `HTTP ${response.status}`);
+      updateProgressBar(1, "done");
+    }
     renderAnalysis(payload, { saveToHistory: !targetPathology });
-    status.textContent = "Análise concluída.";
+    status.textContent = payload.cache?.hit
+      ? "Análise concluída (cache)."
+      : "Análise concluída.";
   } catch (error) {
     status.textContent = `Não foi possível analisar: ${error.message}`;
   } finally {
     actionButtons.forEach((button) => {
       button.disabled = false;
     });
+    const wrap = document.querySelector("#analysis-progress");
+    if (wrap) wrap.hidden = true;
   }
 }
 

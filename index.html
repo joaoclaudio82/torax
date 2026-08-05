@@ -215,6 +215,21 @@
               <input type="checkbox" id="estimate-stability" />
               Estimar estabilidade (TTA leve; mais lento)
             </label>
+            <label class="stability-toggle">
+              <input type="checkbox" id="use-async-analyze" checked />
+              Análise com progresso (assíncrona)
+            </label>
+            <div
+              class="analysis-progress"
+              id="analysis-progress"
+              role="progressbar"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+              hidden
+            >
+              <div id="analysis-progress-bar"></div>
+            </div>
             <div class="analysis-actions">
               <button type="button" id="pick-file" class="primary-button">
                 Selecionar arquivo
