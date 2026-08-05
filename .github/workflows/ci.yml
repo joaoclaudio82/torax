@@ -40,6 +40,9 @@ jobs:
       - name: Run fast suite
         run: npm run test:fast
 
+      - name: Unit tests via pytest.ini
+        run: .venv/bin/python -m pytest test_metrics.py test_radiograph_quality.py test_rate_limit.py test_analysis_cache.py
+
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 25
