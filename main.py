@@ -22,6 +22,7 @@ import imaging
 import overlay
 import xray_model
 from comparison import build_prediction_deltas
+from analysis_cache import cache as analysis_cache
 from radiograph_quality import assess_radiograph_quality
 from uncertainty import estimate_prediction_stability
 
@@ -148,6 +149,7 @@ def health():
         "weights": xray_model.WEIGHTS,
         "pathologies": len([p for p in m.pathologies if p]),
         "max_upload_mb": MAX_UPLOAD_BYTES // (1024 * 1024),
+        "cache": analysis_cache.stats(),
     }
 
 
@@ -162,6 +164,21 @@ async def analyze(
     if not data:
         raise HTTPException(status_code=400, detail="Arquivo vazio.")
     _validate_upload(file, data)
+
+    cache_key = analysis_cache.fingerprint(
+        data,
+        file.filename or "",
+        extras=f"{target_pathology or ''}|{int(estimate_stability)}",
+    )
+    cached = analysis_cache.get(cache_key)
+    if cached is not None:
+        payload = dict(cached)
+        payload["cache"] = {"hit": True, **analysis_cache.stats()}
+        payload["timings"] = {
+            **payload.get("timings", {}),
+            "total_ms": round((time.perf_counter() - request_started) * 1000, 2),
+        }
+        return payload
 
     preprocessing_started = time.perf_counter()
     try:
@@ -198,7 +215,7 @@ async def analyze(
 
     ranked = sorted(probs.items(), key=lambda kv: kv[1]["prob"], reverse=True)
 
-    return {
+    payload = {
         "target_pathology": target,
         "pneumonia_group": xray_model.PNEUMONIA_GROUP,
         "predictions": [
@@ -246,6 +263,10 @@ async def analyze(
             "nem laudo radiologico. Nao usar em decisao clinica real."
         ),
     }
+    analysis_cache.set(cache_key, payload)
+    payload = dict(payload)
+    payload["cache"] = {"hit": False, **analysis_cache.stats()}
+    return payload
 
 
 @app.post("/compare")
