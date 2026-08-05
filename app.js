@@ -4,6 +4,7 @@ import {
   addHistoryEntry,
   clearHistory,
   createEducationalReport,
+  predictionsToCsv,
   readHistory,
 } from "./history.js";
 import { createImageFilter, DEFAULT_VIEW, normalizeView } from "./viewer.js";
@@ -584,6 +585,7 @@ function renderHistory(selectedId = null) {
   const entries = readHistory();
   const list = document.querySelector("#history-list");
   document.querySelector("#export-latest").disabled = entries.length === 0;
+  document.querySelector("#export-csv").disabled = entries.length === 0;
 
   if (!entries.length) {
     list.innerHTML = '<p class="history-empty">Nenhuma análise salva localmente.</p>';
@@ -790,6 +792,19 @@ document.querySelector("#history-list").addEventListener("click", (event) => {
 document.querySelector("#clear-history").addEventListener("click", () => {
   clearHistory();
   renderHistory();
+});
+
+document.querySelector("#export-csv").addEventListener("click", () => {
+  const [latest] = readHistory();
+  if (!latest) return;
+  const blob = new Blob([predictionsToCsv(latest)], {
+    type: "text/csv;charset=utf-8",
+  });
+  const anchor = document.createElement("a");
+  anchor.href = URL.createObjectURL(blob);
+  anchor.download = `thorax-predicoes-${latest.id}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(anchor.href);
 });
 
 document.querySelector("#export-latest").addEventListener("click", () => {

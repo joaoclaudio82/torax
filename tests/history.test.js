@@ -6,6 +6,7 @@ import {
   clearHistory,
   createEducationalReport,
   MAX_HISTORY_ITEMS,
+  predictionsToCsv,
   readHistory,
 } from "../history.js";
 
@@ -49,4 +50,17 @@ test("o relatório educacional possui schema e aviso explícitos", () => {
   assert.equal(report.schema, "thorax.educational-report.v1");
   assert.equal(report.analysis.target_pathology, "Effusion");
   assert.match(report.disclaimer, /Não representa diagnóstico/);
+});
+
+test("a exportação CSV inclui cabeçalho e linhas de predição", () => {
+  const csv = predictionsToCsv({
+    filename: "study.jpg",
+    timestamp: "2026-01-01T00:00:00.000Z",
+    topPredictions: [
+      { pathology: "Effusion", probability: 0.81, threshold_band: "above" },
+    ],
+  });
+  assert.match(csv, /^filename,timestamp,pathology/);
+  assert.match(csv, /study\.jpg/);
+  assert.match(csv, /Effusion,0\.81,above/);
 });

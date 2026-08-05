@@ -43,3 +43,27 @@ export function createEducationalReport(entry) {
       "Relatório educacional. Não representa diagnóstico nem laudo radiológico.",
   };
 }
+
+function csvEscape(value) {
+  const text = String(value ?? "");
+  if (/[",\n]/.test(text)) {
+    return `"${text.replaceAll('"', '""')}"`;
+  }
+  return text;
+}
+
+export function predictionsToCsv(entry) {
+  const rows = [
+    ["filename", "timestamp", "pathology", "probability", "threshold_band"],
+  ];
+  for (const prediction of entry.topPredictions || []) {
+    rows.push([
+      entry.filename || "",
+      entry.timestamp || "",
+      prediction.pathology || "",
+      prediction.probability ?? prediction.prob ?? "",
+      prediction.threshold_band || prediction.thresholdBand || "",
+    ]);
+  }
+  return rows.map((row) => row.map(csvEscape).join(",")).join("\n");
+}
