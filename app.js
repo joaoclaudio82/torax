@@ -36,6 +36,10 @@ async function initOperationalStatus() {
     const health = await response.json();
     document.querySelector("#class-count").textContent = health.pathologies;
     document.querySelector("#model-name").textContent = "DenseNet-121";
+    const versionBadge = document.querySelector("#api-version");
+    if (versionBadge && health.api_version) {
+      versionBadge.textContent = `v${health.api_version}`;
+    }
     modelStatus.querySelector("span").textContent =
       `Modelo disponível · ${health.pathologies} classes`;
     modelStatus.classList.remove("error");

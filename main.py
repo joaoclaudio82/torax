@@ -157,6 +157,26 @@ def _analyze_for_comparison(data: bytes, filename: str) -> dict:
     }
 
 
+@app.get("/api/info")
+def api_info():
+    """Metadados estáveis da API para clientes e badges da UI."""
+    return {
+        "name": "thorax-triage",
+        "api_version": app.version,
+        "capabilities": [
+            "analyze",
+            "analyze-async",
+            "compare",
+            "radiograph-qc",
+            "prediction-stability",
+            "cache",
+        ],
+        "disclaimer": (
+            "Protótipo de pesquisa e ensino. Não substitui avaliação médica."
+        ),
+    }
+
+
 @app.get("/health")
 def health():
     m = xray_model.get_model()
@@ -167,6 +187,7 @@ def health():
         "pathologies": len([p for p in m.pathologies if p]),
         "max_upload_mb": MAX_UPLOAD_BYTES // (1024 * 1024),
         "cache": analysis_cache.stats(),
+        "capabilities": api_info()["capabilities"],
     }
 
 

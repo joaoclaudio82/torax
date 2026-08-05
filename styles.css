@@ -1185,6 +1185,14 @@ main {
   line-height: 1.45;
 }
 
+.api-version {
+  margin-left: auto;
+  margin-right: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
