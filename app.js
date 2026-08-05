@@ -265,6 +265,7 @@ function renderAnalysis(data, { saveToHistory = false } = {}) {
   document.querySelector("#result-overlay").style.opacity =
     Number(document.querySelector("#overlay-opacity").value) / 100;
   renderQuality(data.input_quality, data.image_metadata);
+  renderRadiographQuality(data.radiograph_quality);
   renderDecisionContext(data.decision_context);
   renderPerformance(data.timings);
   const target = data.predictions.find(
@@ -348,6 +349,32 @@ function renderQuality(quality, metadata = null) {
       <div><dt>Proporção</dt><dd>${metrics.aspect_ratio ?? "—"}</dd></div>
     </dl>
     ${dicomMetadata}
+  `;
+}
+
+function renderRadiographQuality(report) {
+  const panel = document.querySelector("#radiograph-qc-panel");
+  if (!report) {
+    panel.hidden = true;
+    return;
+  }
+  const flags = report.flags?.length
+    ? `<ul>${report.flags.map((flag) => `<li>${flag}</li>`).join("")}</ul>`
+    : "<p>Nenhum alerta de posicionamento/exposição destacado.</p>";
+  panel.hidden = false;
+  panel.innerHTML = `
+    <div>
+      <span class="section-label">QC radiográfico (educacional)</span>
+      <strong>Exposição: ${report.exposure.label}</strong>
+      <p>${report.exposure.tip}</p>
+    </div>
+    <dl class="quality-metrics">
+      <div><dt>Rotação</dt><dd>${report.rotation.label}</dd></div>
+      <div><dt>Projeção</dt><dd>${report.projection_hint.label}</dd></div>
+      <div><dt>Assimetria</dt><dd>${report.rotation.asymmetry_ratio}</dd></div>
+    </dl>
+    ${flags}
+    <p class="panel-note">${report.disclaimer}</p>
   `;
 }
 
