@@ -1,4 +1,5 @@
 import { findStudy, studies } from "./data.js";
+import { glossaryEntry } from "./glossary.js";
 import {
   addHistoryEntry,
   clearHistory,
@@ -338,6 +339,7 @@ function renderAnalysis(data, { saveToHistory = false } = {}) {
     .slice(0, 10)
     .map((prediction) => {
       const percent = (prediction.prob * 100).toFixed(1);
+      const entry = glossaryEntry(prediction.pathology);
       const threshold =
         prediction.op_threshold == null
           ? ""
@@ -347,9 +349,10 @@ function renderAnalysis(data, { saveToHistory = false } = {}) {
           type="button"
           class="prediction-row ${prediction.in_pneumonia_group ? "group" : ""} ${prediction.threshold_band ?? ""} ${prediction.pathology === data.target_pathology ? "selected" : ""}"
           data-pathology="${prediction.pathology}"
+          title="${entry.title}: ${entry.summary}"
           aria-pressed="${prediction.pathology === data.target_pathology}"
         >
-          <span>${prediction.pathology}</span>
+          <span>${entry.title}</span>
           <span class="prediction-track">
             <span class="prediction-fill" style="width:${percent}%"></span>
             ${threshold}
