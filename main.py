@@ -10,6 +10,7 @@ from __future__ import annotations
 import io
 import logging
 import os
+import threading
 import time
 import uuid
 
@@ -21,8 +22,9 @@ from fastapi.staticfiles import StaticFiles
 import imaging
 import overlay
 import xray_model
-from comparison import build_prediction_deltas
 from analysis_cache import cache as analysis_cache
+from comparison import build_prediction_deltas
+from jobs import run_job, store as job_store
 from radiograph_quality import assess_radiograph_quality
 from uncertainty import estimate_prediction_stability
 
@@ -153,21 +155,22 @@ def health():
     }
 
 
-@app.post("/analyze")
-async def analyze(
-    file: UploadFile = File(...),
-    target_pathology: str | None = Form(default=None),
-    estimate_stability: bool = Form(default=False),
-):
-    request_started = time.perf_counter()
-    data = await file.read()
-    if not data:
-        raise HTTPException(status_code=400, detail="Arquivo vazio.")
-    _validate_upload(file, data)
+def _build_analyze_payload(
+    data: bytes,
+    filename: str,
+    target_pathology: str | None = None,
+    estimate_stability: bool = False,
+    progress_cb=None,
+) -> dict:
+    """Executa o pipeline de análise e devolve o payload JSON."""
+    def report(**kwargs):
+        if progress_cb is not None:
+            progress_cb(**kwargs)
 
+    request_started = time.perf_counter()
     cache_key = analysis_cache.fingerprint(
         data,
-        file.filename or "",
+        filename,
         extras=f"{target_pathology or ''}|{int(estimate_stability)}",
     )
     cached = analysis_cache.get(cache_key)
@@ -178,30 +181,29 @@ async def analyze(
             **payload.get("timings", {}),
             "total_ms": round((time.perf_counter() - request_started) * 1000, 2),
         }
+        report(progress=1.0, stage="cache")
         return payload
 
+    report(progress=0.15, stage="preprocessing")
     preprocessing_started = time.perf_counter()
     try:
-        raw, image_metadata = imaging.load_image_with_metadata(
-            data, file.filename or ""
-        )
+        raw, image_metadata = imaging.load_image_with_metadata(data, filename)
         input_quality = imaging.assess_quality(raw)
         radiograph_qc = assess_radiograph_quality(raw)
         tensor, vis_u8 = imaging.preprocess(raw)
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=422,
-                            detail=f"Falha ao ler a imagem: {exc}")
+        raise ValueError(f"Falha ao ler a imagem: {exc}") from exc
     preprocessing_ms = (time.perf_counter() - preprocessing_started) * 1000
 
+    report(progress=0.45, stage="inference")
     inference_started = time.perf_counter()
     probs = xray_model.predict(tensor)
     inference_ms = (time.perf_counter() - inference_started) * 1000
     if target_pathology and target_pathology not in probs:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Patologia-alvo desconhecida: {target_pathology}.",
-        )
+        raise ValueError(f"Patologia-alvo desconhecida: {target_pathology}.")
     target = target_pathology or xray_model.top_target(probs)
+
+    report(progress=0.7, stage="gradcam")
     gradcam_started = time.perf_counter()
     cam = xray_model.gradcam(tensor, target)
     gradcam_ms = (time.perf_counter() - gradcam_started) * 1000
@@ -209,12 +211,12 @@ async def analyze(
     stability = None
     stability_ms = 0.0
     if estimate_stability:
+        report(progress=0.85, stage="stability")
         stability_started = time.perf_counter()
         stability = estimate_prediction_stability(tensor, samples=3)
         stability_ms = (time.perf_counter() - stability_started) * 1000
 
     ranked = sorted(probs.items(), key=lambda kv: kv[1]["prob"], reverse=True)
-
     payload = {
         "target_pathology": target,
         "pneumonia_group": xray_model.PNEUMONIA_GROUP,
@@ -266,7 +268,67 @@ async def analyze(
     analysis_cache.set(cache_key, payload)
     payload = dict(payload)
     payload["cache"] = {"hit": False, **analysis_cache.stats()}
+    report(progress=0.98, stage="finalizing")
     return payload
+
+
+@app.post("/analyze")
+async def analyze(
+    file: UploadFile = File(...),
+    target_pathology: str | None = Form(default=None),
+    estimate_stability: bool = Form(default=False),
+):
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Arquivo vazio.")
+    _validate_upload(file, data)
+    try:
+        return _build_analyze_payload(
+            data,
+            file.filename or "",
+            target_pathology=target_pathology,
+            estimate_stability=estimate_stability,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/analyze/async")
+async def analyze_async(
+    file: UploadFile = File(...),
+    target_pathology: str | None = Form(default=None),
+    estimate_stability: bool = Form(default=False),
+):
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Arquivo vazio.")
+    _validate_upload(file, data)
+    job = job_store.create()
+    filename = file.filename or ""
+
+    def worker(report):
+        return _build_analyze_payload(
+            data,
+            filename,
+            target_pathology=target_pathology,
+            estimate_stability=estimate_stability,
+            progress_cb=report,
+        )
+
+    threading.Thread(
+        target=run_job,
+        args=(job.id, worker),
+        daemon=True,
+    ).start()
+    return {"job_id": job.id, "status": job.status}
+
+
+@app.get("/jobs/{job_id}")
+def get_job(job_id: str):
+    job = job_store.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job não encontrado.")
+    return job_store.to_dict(job)
 
 
 @app.post("/compare")
