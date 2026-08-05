@@ -15,10 +15,17 @@ torax/
 ├── imaging.py              leitura e pré-processamento das radiografias
 ├── overlay.py              composição do mapa de calor sobre a imagem
 ├── comparison.py           cálculo dos deltas entre duas análises
+├── metrics.py              métricas binárias educacionais (AUROC, F1…)
+├── radiograph_quality.py   heurísticas de QC radiográfico
+├── uncertainty.py          estabilidade via TTA leve
+├── analysis_cache.py       cache em memória por hash do arquivo
+├── jobs.py                 fila assíncrona de análises
+├── rate_limit.py           limitador por origem
 ├── index.html              estrutura da interface web
 ├── styles.css              apresentação visual e responsividade
 ├── app.js                  interação da interface e integração com a API
 ├── data.js                 metadados do atlas visual
+├── glossary.js             glossário educacional das classes
 ├── viewer.js               regras dos controles radiológicos
 ├── history.js              histórico privado e relatório educacional
 ├── Dockerfile              imagem de execução sem privilégios
@@ -45,8 +52,10 @@ torax/
 O `main.py` expõe os endpoints:
 
 - `GET /health`: carrega o modelo e informa seu estado.
+- `GET /api/info`: versão da API e capacidades disponíveis.
 - `POST /analyze`: recebe uma imagem, executa o pipeline e retorna as previsões,
   a qualidade de entrada, a radiografia processada e o mapa de atenção.
+- `POST /analyze/async` e `GET /jobs/{id}`: análise assíncrona com progresso.
 - `POST /compare`: processa duas imagens e ordena as maiores diferenças entre
   as probabilidades produzidas pelo modelo.
 - `GET /`: entrega a interface web.
@@ -159,6 +168,18 @@ O backend não armazena imagens ou resultados. O histórico usa `localStorage`,
 mantém no máximo dez registros com miniaturas reduzidas e permite exportar um
 JSON educacional sem incluir a imagem original.
 
+### QC radiográfico e estabilidade
+
+Além da qualidade de entrada, o sistema estima exposição, assimetria
+(rotação aparente) e um hint educacional de projeção. Opcionalmente, um TTA
+leve mede a estabilidade das probabilidades sob flip e ruído.
+
+### Cache, jobs e limite de taxa
+
+Resultados recentes são reutilizados por hash do arquivo. A análise pode
+correr em job assíncrono com estágios de progresso. Requisições `POST /analyze*`
+podem ser limitadas por origem para demos locais.
+
 ### Segurança e observabilidade
 
 A API valida extensão, MIME e assinatura binária, limita uploads, restringe
@@ -189,6 +210,7 @@ Upload
 
 ### Testes
 
-Os testes JavaScript cobrem atlas, visualizador, histórico e relatórios. Os
-testes Python cobrem qualidade, comparação, estatísticas Grad-CAM, erros da API
-e o pipeline completo com radiografia sintética.
+Os testes JavaScript cobrem atlas, visualizador, histórico, CSV e relatórios.
+Os testes Python cobrem métricas, QC radiográfico, cache, rate limit, qualidade,
+comparação, estatísticas Grad-CAM, erros da API e o pipeline completo com
+radiografia sintética.
