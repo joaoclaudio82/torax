@@ -22,6 +22,7 @@ import imaging
 import overlay
 import xray_model
 from comparison import build_prediction_deltas
+from radiograph_quality import assess_radiograph_quality
 
 app = FastAPI(title="Triagem de Torax (prototipo de pesquisa)", version="2.0")
 logger = logging.getLogger("thorax.api")
@@ -166,6 +167,7 @@ async def analyze(
             data, file.filename or ""
         )
         input_quality = imaging.assess_quality(raw)
+        radiograph_qc = assess_radiograph_quality(raw)
         tensor, vis_u8 = imaging.preprocess(raw)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=422,
@@ -212,6 +214,7 @@ async def analyze(
         "image_original": overlay.gray_to_b64(vis_u8),
         "image_overlay": overlay.make_overlay(vis_u8, cam),
         "input_quality": input_quality,
+        "radiograph_quality": radiograph_qc,
         "image_metadata": image_metadata,
         "decision_context": xray_model.decision_context(probs),
         "explainability": {

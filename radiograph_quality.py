@@ -106,11 +106,26 @@ def estimate_projection_hint(image: np.ndarray) -> dict:
     }
 
 
+def _to_display_scale(image: np.ndarray) -> np.ndarray:
+    """Mapeia a matriz para 0..255 para heurísticas comparáveis entre formatos."""
+    arr = np.asarray(image, dtype=np.float32)
+    finite = arr[np.isfinite(arr)]
+    if finite.size == 0:
+        return np.zeros_like(arr, dtype=np.float32)
+    lo = float(np.percentile(finite, 1))
+    hi = float(np.percentile(finite, 99))
+    if hi - lo < 1e-6:
+        return np.zeros_like(arr, dtype=np.float32)
+    scaled = np.clip((arr - lo) / (hi - lo), 0.0, 1.0) * 255.0
+    return scaled.astype(np.float32)
+
+
 def assess_radiograph_quality(image: np.ndarray) -> dict:
     """Agrega heurísticas de QC radiográfico para o painel educacional."""
-    exposure = estimate_exposure(image)
-    rotation = estimate_rotation(image)
-    projection = estimate_projection_hint(image)
+    scaled = _to_display_scale(image)
+    exposure = estimate_exposure(scaled)
+    rotation = estimate_rotation(scaled)
+    projection = estimate_projection_hint(scaled)
 
     flags = []
     if exposure["label"] != "adequada":
