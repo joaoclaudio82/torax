@@ -113,6 +113,17 @@ def _safe_dicom_metadata(ds, window_applied: bool) -> dict:
         except (TypeError, ValueError):
             spacing = None
 
+    laterality = str(getattr(ds, "ImageLaterality", "") or "") or str(
+        getattr(ds, "Laterality", "") or ""
+    )
+    patient_orientation = getattr(ds, "PatientOrientation", None)
+    orientation = None
+    if patient_orientation is not None:
+        try:
+            orientation = [str(value) for value in list(patient_orientation)[:4]]
+        except (TypeError, ValueError):
+            orientation = None
+
     return {
         "format": "DICOM",
         "anonymized": True,
@@ -121,6 +132,8 @@ def _safe_dicom_metadata(ds, window_applied: bool) -> dict:
         "modality": str(getattr(ds, "Modality", "") or ""),
         "view_position": str(getattr(ds, "ViewPosition", "") or ""),
         "body_part_examined": str(getattr(ds, "BodyPartExamined", "") or ""),
+        "image_laterality": laterality,
+        "patient_orientation": orientation,
         "photometric_interpretation": str(
             getattr(ds, "PhotometricInterpretation", "") or ""
         ),
