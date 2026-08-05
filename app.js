@@ -236,6 +236,8 @@ async function analyzeFile(file, targetPathology = null) {
   const formData = new FormData();
   formData.append("file", file);
   if (targetPathology) formData.append("target_pathology", targetPathology);
+  const estimateStability = document.querySelector("#estimate-stability")?.checked;
+  if (estimateStability) formData.append("estimate_stability", "true");
   status.textContent = targetPathology
     ? `Gerando explicação para ${targetPathology}…`
     : `Analisando ${file.name}… a primeira execução pode baixar o modelo.`;
@@ -266,6 +268,7 @@ function renderAnalysis(data, { saveToHistory = false } = {}) {
     Number(document.querySelector("#overlay-opacity").value) / 100;
   renderQuality(data.input_quality, data.image_metadata);
   renderRadiographQuality(data.radiograph_quality);
+  renderStability(data.prediction_stability);
   renderDecisionContext(data.decision_context);
   renderPerformance(data.timings);
   const target = data.predictions.find(
@@ -375,6 +378,30 @@ function renderRadiographQuality(report) {
     </dl>
     ${flags}
     <p class="panel-note">${report.disclaimer}</p>
+  `;
+}
+
+function renderStability(report) {
+  const panel = document.querySelector("#stability-panel");
+  if (!report) {
+    panel.hidden = true;
+    return;
+  }
+  const rows = report.most_variable
+    .map(
+      (item) =>
+        `<li><strong>${item.pathology}</strong> · σ=${item.std} · média=${(item.mean * 100).toFixed(1)}%</li>`,
+    )
+    .join("");
+  panel.hidden = false;
+  panel.innerHTML = `
+    <div>
+      <span class="section-label">Estabilidade da saída</span>
+      <strong>${report.stability_label}</strong>
+      <p>σ média = ${report.mean_std} · ${report.samples} amostras TTA</p>
+    </div>
+    <ul>${rows}</ul>
+    <p class="panel-note">${report.note}</p>
   `;
 }
 

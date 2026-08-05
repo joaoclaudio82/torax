@@ -211,6 +211,10 @@
               id="analysis-file"
               accept=".png,.jpg,.jpeg,.dcm,.dicom,image/*"
             />
+            <label class="stability-toggle">
+              <input type="checkbox" id="estimate-stability" />
+              Estimar estabilidade (TTA leve; mais lento)
+            </label>
             <div class="analysis-actions">
               <button type="button" id="pick-file" class="primary-button">
                 Selecionar arquivo
@@ -263,6 +267,7 @@
           </div>
           <div class="quality-panel" id="quality-panel"></div>
           <div class="radiograph-qc-panel" id="radiograph-qc-panel" hidden></div>
+          <div class="stability-panel" id="stability-panel" hidden></div>
           <div class="decision-panel" id="decision-panel"></div>
           <div class="performance-panel" id="performance-panel"></div>
           <div class="result-grid">
