@@ -23,6 +23,7 @@ import overlay
 import xray_model
 from comparison import build_prediction_deltas
 from radiograph_quality import assess_radiograph_quality
+from uncertainty import estimate_prediction_stability
 
 app = FastAPI(title="Triagem de Torax (prototipo de pesquisa)", version="2.0")
 logger = logging.getLogger("thorax.api")
@@ -154,6 +155,7 @@ def health():
 async def analyze(
     file: UploadFile = File(...),
     target_pathology: str | None = Form(default=None),
+    estimate_stability: bool = Form(default=False),
 ):
     request_started = time.perf_counter()
     data = await file.read()
@@ -187,6 +189,13 @@ async def analyze(
     cam = xray_model.gradcam(tensor, target)
     gradcam_ms = (time.perf_counter() - gradcam_started) * 1000
 
+    stability = None
+    stability_ms = 0.0
+    if estimate_stability:
+        stability_started = time.perf_counter()
+        stability = estimate_prediction_stability(tensor, samples=3)
+        stability_ms = (time.perf_counter() - stability_started) * 1000
+
     ranked = sorted(probs.items(), key=lambda kv: kv[1]["prob"], reverse=True)
 
     return {
@@ -217,6 +226,7 @@ async def analyze(
         "radiograph_quality": radiograph_qc,
         "image_metadata": image_metadata,
         "decision_context": xray_model.decision_context(probs),
+        "prediction_stability": stability,
         "explainability": {
             "target_pathology": target,
             "cam_stats": xray_model.cam_stats(cam),
@@ -228,6 +238,7 @@ async def analyze(
             "preprocessing_ms": round(preprocessing_ms, 2),
             "inference_ms": round(inference_ms, 2),
             "gradcam_ms": round(gradcam_ms, 2),
+            "stability_ms": round(stability_ms, 2),
             "total_ms": round((time.perf_counter() - request_started) * 1000, 2),
         },
         "disclaimer": (
