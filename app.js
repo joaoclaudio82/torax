@@ -68,10 +68,31 @@ function resetViewer() {
   applyViewerState();
 }
 
+function filteredStudies() {
+  const query = (document.querySelector("#study-filter")?.value || "")
+    .trim()
+    .toLowerCase();
+  if (!query) return studies;
+  return studies.filter((study) => {
+    const haystack = [
+      study.title,
+      study.subtitle,
+      study.badge,
+      ...(study.learningTags || []),
+    ]
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(query);
+  });
+}
+
 function renderButtons(activeId) {
-  buttonsContainer.innerHTML = studies
-    .map(
-      (study, index) => `
+  const visible = filteredStudies();
+  document.querySelector("#study-count").textContent = String(visible.length);
+  buttonsContainer.innerHTML = visible.length
+    ? visible
+        .map(
+          (study, index) => `
         <button
           class="study-button ${study.id === activeId ? "active" : ""}"
           type="button"
@@ -85,8 +106,9 @@ function renderButtons(activeId) {
           </span>
         </button>
       `,
-    )
-    .join("");
+        )
+        .join("")
+    : `<p class="empty-filter">Nenhuma imagem corresponde ao filtro.</p>`;
 }
 
 function renderStudy(id, animate = true) {
@@ -118,6 +140,10 @@ function renderStudy(id, animate = true) {
     animate ? 160 : 0,
   );
 }
+
+document.querySelector("#study-filter")?.addEventListener("input", () => {
+  renderButtons(selectedStudyId);
+});
 
 buttonsContainer.addEventListener("click", (event) => {
   const button = event.target.closest("[data-study]");
