@@ -26,9 +26,10 @@ from analysis_cache import cache as analysis_cache
 from comparison import build_prediction_deltas
 from jobs import run_job, store as job_store
 from radiograph_quality import assess_radiograph_quality
+from rate_limit import limiter as rate_limiter
 from uncertainty import estimate_prediction_stability
 
-app = FastAPI(title="Triagem de Torax (prototipo de pesquisa)", version="2.0")
+app = FastAPI(title="Triagem de Torax (prototipo de pesquisa)", version="2.1.0")
 logger = logging.getLogger("thorax.api")
 ALLOWED_ORIGINS = os.getenv(
     "THORAX_ALLOWED_ORIGINS",
@@ -56,6 +57,20 @@ SUPPORTED_CONTENT_TYPES = {
 @app.middleware("http")
 async def security_and_observability(request: Request, call_next):
     request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    if request.method == "POST" and request.url.path.startswith("/analyze"):
+        client = request.client.host if request.client else "unknown"
+        allowed, retry_after = rate_limiter.allow(client)
+        if not allowed:
+            from fastapi.responses import JSONResponse
+
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Limite de requisições excedido. Tente novamente em breve."},
+                headers={
+                    "Retry-After": str(retry_after),
+                    "X-Request-ID": request_id,
+                },
+            )
     started = time.perf_counter()
     response = await call_next(request)
     duration_ms = (time.perf_counter() - started) * 1000
