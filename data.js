@@ -392,6 +392,24 @@ export const studies = [
     learningTags: ["NIH", "Pneumonia", "Nodule"],
     source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
     license: "NIH Clinical Center (atribuição obrigatória)",
+  },
+  {
+    id: "nih-edema",
+    title: "NIH — Edema",
+    subtitle: "Edema (+ outros) · AP",
+    image: "assets/nih-demo/00000032_001.png",
+    alt: "Radiografia NIH com rótulo Edema",
+    badge: "NIH demo",
+    description:
+      "Caso AP multilabel com edema, cardiomegalia e derrame.",
+    observations: [
+      "Rótulos NIH: Cardiomegaly|Edema|Effusion",
+      "Incidência AP",
+      "Padrão compatível com sobrecarga / edema cardiogênico educacional",
+    ],
+    learningTags: ["NIH", "Edema", "Cardiomegaly", "Effusion"],
+    source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
+    license: "NIH Clinical Center (atribuição obrigatória)",
   }
 ];
 
