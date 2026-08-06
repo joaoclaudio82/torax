@@ -357,6 +357,24 @@ export const studies = [
     learningTags: ["NIH", "Pleural_Thickening"],
     source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
     license: "NIH Clinical Center (atribuição obrigatória)",
+  },
+  {
+    id: "nih-pneumothorax",
+    title: "NIH — Pneumotórax",
+    subtitle: "Pneumothorax (+ outros) · AP",
+    image: "assets/nih-demo/00000013_023.png",
+    alt: "Radiografia NIH com rótulo Pneumothorax",
+    badge: "NIH demo",
+    description:
+      "Caso multilabel incluindo pneumotórax, infiltração e massa.",
+    observations: [
+      "Rótulos NIH: Infiltration|Mass|Pneumothorax",
+      "Incidência AP",
+      "Rótulo NLP — valide visualmente antes de interpretar o modelo",
+    ],
+    learningTags: ["NIH", "Pneumothorax"],
+    source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
+    license: "NIH Clinical Center (atribuição obrigatória)",
   }
 ];
 
