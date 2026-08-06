@@ -150,7 +150,7 @@ export const studies = [
     source:
       "https://commons.wikimedia.org/wiki/File:AP_portable_CXR_of_a_patient_in_acute_pulmonary_oedema.jpg",
     license: "CC BY-SA 3.0",
-  },,
+  },
   {
     id: "nih-no-finding-01",
     title: "NIH — Sem achado",
