@@ -31,6 +31,7 @@ torax/
 ├── Dockerfile              imagem de execução sem privilégios
 ├── docker-compose.yml      serviço e cache persistente do modelo
 ├── scripts/                execução Python multiplataforma
+│   └── download_nih_demo.py  mini-acervo NIH ChestX-ray14
 ├── .github/workflows/      validação automática e build do container
 ├── assets/
 │   ├── chest-*.jpg         incidências de referência
@@ -38,7 +39,8 @@ torax/
 │   ├── pneumothorax-*.jpg  exemplo de pneumotórax
 │   ├── pleural-*.jpg       exemplo de derrame pleural
 │   ├── pulmonary-*.jpg     exemplo de edema pulmonar
-│   └── thorax-anatomy.gif  referência anatômica
+│   ├── thorax-anatomy.gif  referência anatômica
+│   └── nih-demo/           pack NIH baixado sob demanda
 ├── tests/
 │   ├── data.test.js        consistência dos dados do atlas
 │   ├── viewer.test.js      controles de visualização
@@ -80,7 +82,22 @@ A interface utiliza HTML, CSS e JavaScript sem framework. Ela contém:
 - comparação A/B entre referências;
 - modo de estudo e checklist ABCDE;
 - histórico limitado ao navegador e exportação JSON;
-- ranking das probabilidades e indicação dos limiares de operação.
+- ranking das probabilidades e indicação dos limiares de operação;
+- mini-acervo NIH ChestX-ray14 (após download local) filtrável pela tag `NIH`.
+
+### Mini-banco NIH (demo)
+
+O atlas pode incluir ~15 radiografias reais do
+[NIH ChestX-ray14](https://nihcc.app.box.com/v/ChestXray-NIHCC), com rótulos
+minerados por NLP. O pacote **não** fica versionado no Git; baixe localmente:
+
+```bash
+npm run download:nih-demo
+```
+
+O script extrai apenas os PNGs curados do mirror Hugging Face via HTTP Range
+(sem baixar o ZIP completo). Atribua o NIH Clinical Center e cite Wang et al.,
+CVPR 2017 (`https://arxiv.org/abs/1705.02315`). Os rótulos não são laudo clínico.
 
 ## Técnicas utilizadas
 
