@@ -150,7 +150,43 @@ export const studies = [
     source:
       "https://commons.wikimedia.org/wiki/File:AP_portable_CXR_of_a_patient_in_acute_pulmonary_oedema.jpg",
     license: "CC BY-SA 3.0",
+  },,
+  {
+    id: "nih-no-finding-01",
+    title: "NIH — Sem achado",
+    subtitle: "No Finding · PA",
+    image: "assets/nih-demo/00000002_000.png",
+    alt: "Radiografia de tórax NIH rotulada como No Finding",
+    badge: "NIH demo",
+    description:
+      "Caso do ChestX-ray14 sem achado minerado por NLP. Útil como referência de controle no teste do modelo.",
+    observations: [
+      "Rótulo NIH: No Finding",
+      "Incidência PA",
+      "Rótulos do NIH são text-mined e não substituem laudo",
+    ],
+    learningTags: ["NIH", "Normal", "No Finding"],
+    source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
+    license: "NIH Clinical Center (atribuição obrigatória)",
   },
+  {
+    id: "nih-no-finding-02",
+    title: "NIH — Sem achado (2)",
+    subtitle: "No Finding · PA",
+    image: "assets/nih-demo/00000005_000.png",
+    alt: "Segunda radiografia NIH rotulada como No Finding",
+    badge: "NIH demo",
+    description:
+      "Segundo exemplo sem achado do acervo NIH para comparar a resposta do modelo em casos negativos.",
+    observations: [
+      "Rótulo NIH: No Finding",
+      "Incidência PA",
+      "Compare com o outro caso No Finding do pack",
+    ],
+    learningTags: ["NIH", "Normal", "No Finding"],
+    source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
+    license: "NIH Clinical Center (atribuição obrigatória)",
+  }
 ];
 
 export function findStudy(id) {
