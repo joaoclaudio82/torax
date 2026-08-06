@@ -221,6 +221,40 @@ export const studies = [
     learningTags: ["NIH", "Atelectasis"],
     source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
     license: "NIH Clinical Center (atribuição obrigatória)",
+  },
+  {
+    id: "nih-effusion",
+    title: "NIH — Derrame pleural",
+    subtitle: "Effusion · PA",
+    image: "assets/nih-demo/00000011_000.png",
+    alt: "Radiografia NIH com rótulo Effusion",
+    badge: "NIH demo",
+    description: "Caso com rótulo único de derrame pleural.",
+    observations: [
+      "Rótulo NIH: Effusion",
+      "Incidência PA",
+      "Compare com o exemplo Wikimedia de derrame",
+    ],
+    learningTags: ["NIH", "Effusion"],
+    source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
+    license: "NIH Clinical Center (atribuição obrigatória)",
+  },
+  {
+    id: "nih-infiltration",
+    title: "NIH — Infiltrado",
+    subtitle: "Infiltration · PA",
+    image: "assets/nih-demo/00000005_006.png",
+    alt: "Radiografia NIH com rótulo Infiltration",
+    badge: "NIH demo",
+    description: "Caso com rótulo único de infiltrado pulmonar.",
+    observations: [
+      "Rótulo NIH: Infiltration",
+      "Incidência PA",
+      "Classe ampla e frequentemente ambígua clinicamente",
+    ],
+    learningTags: ["NIH", "Infiltration"],
+    source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
+    license: "NIH Clinical Center (atribuição obrigatória)",
   }
 ];
 
