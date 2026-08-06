@@ -289,6 +289,40 @@ export const studies = [
     learningTags: ["NIH", "Emphysema"],
     source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
     license: "NIH Clinical Center (atribuição obrigatória)",
+  },
+  {
+    id: "nih-nodule",
+    title: "NIH — Nódulo",
+    subtitle: "Nodule · PA",
+    image: "assets/nih-demo/00000008_002.png",
+    alt: "Radiografia NIH com rótulo Nodule",
+    badge: "NIH demo",
+    description: "Caso com rótulo único de nódulo.",
+    observations: [
+      "Rótulo NIH: Nodule",
+      "Incidência PA",
+      "Útil para testar achados focais",
+    ],
+    learningTags: ["NIH", "Nodule"],
+    source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
+    license: "NIH Clinical Center (atribuição obrigatória)",
+  },
+  {
+    id: "nih-mass",
+    title: "NIH — Massa / nódulo",
+    subtitle: "Mass|Nodule · AP",
+    image: "assets/nih-demo/00000004_000.png",
+    alt: "Radiografia NIH com rótulos Mass e Nodule",
+    badge: "NIH demo",
+    description: "Caso multilabel com massa e nódulo.",
+    observations: [
+      "Rótulos NIH: Mass|Nodule",
+      "Incidência AP",
+      "Exemplo de multilabel típico do ChestX-ray14",
+    ],
+    learningTags: ["NIH", "Mass", "Nodule"],
+    source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
+    license: "NIH Clinical Center (atribuição obrigatória)",
   }
 ];
 
