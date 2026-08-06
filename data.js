@@ -186,6 +186,41 @@ export const studies = [
     learningTags: ["NIH", "Normal", "No Finding"],
     source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
     license: "NIH Clinical Center (atribuição obrigatória)",
+  },
+  {
+    id: "nih-cardiomegaly",
+    title: "NIH — Cardiomegalia",
+    subtitle: "Cardiomegaly · PA",
+    image: "assets/nih-demo/00000001_000.png",
+    alt: "Radiografia NIH com rótulo Cardiomegaly",
+    badge: "NIH demo",
+    description:
+      "Caso com rótulo único de cardiomegalia no ChestX-ray14.",
+    observations: [
+      "Rótulo NIH: Cardiomegaly",
+      "Incidência PA",
+      "Bom alvo para a classe Cardiomegaly do modelo",
+    ],
+    learningTags: ["NIH", "Cardiomegaly"],
+    source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
+    license: "NIH Clinical Center (atribuição obrigatória)",
+  },
+  {
+    id: "nih-atelectasis",
+    title: "NIH — Atelectasia",
+    subtitle: "Atelectasis · PA",
+    image: "assets/nih-demo/00000011_006.png",
+    alt: "Radiografia NIH com rótulo Atelectasis",
+    badge: "NIH demo",
+    description: "Caso com rótulo único de atelectasia.",
+    observations: [
+      "Rótulo NIH: Atelectasis",
+      "Incidência PA",
+      "Use no modo estudo antes de abrir o resultado do modelo",
+    ],
+    learningTags: ["NIH", "Atelectasis"],
+    source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
+    license: "NIH Clinical Center (atribuição obrigatória)",
   }
 ];
 
