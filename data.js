@@ -323,6 +323,40 @@ export const studies = [
     learningTags: ["NIH", "Mass", "Nodule"],
     source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
     license: "NIH Clinical Center (atribuição obrigatória)",
+  },
+  {
+    id: "nih-fibrosis",
+    title: "NIH — Fibrose",
+    subtitle: "Fibrosis · PA",
+    image: "assets/nih-demo/00000022_001.png",
+    alt: "Radiografia NIH com rótulo Fibrosis",
+    badge: "NIH demo",
+    description: "Caso com rótulo único de fibrose.",
+    observations: [
+      "Rótulo NIH: Fibrosis",
+      "Incidência PA",
+      "Compare com padrões de opacidades crônicas",
+    ],
+    learningTags: ["NIH", "Fibrosis"],
+    source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
+    license: "NIH Clinical Center (atribuição obrigatória)",
+  },
+  {
+    id: "nih-pleural-thickening",
+    title: "NIH — Espessamento pleural",
+    subtitle: "Pleural_Thickening · AP",
+    image: "assets/nih-demo/00000013_003.png",
+    alt: "Radiografia NIH com rótulo Pleural_Thickening",
+    badge: "NIH demo",
+    description: "Caso com rótulo único de espessamento pleural.",
+    observations: [
+      "Rótulo NIH: Pleural_Thickening",
+      "Incidência AP",
+      "Achado frequentemente sutil na imagem",
+    ],
+    learningTags: ["NIH", "Pleural_Thickening"],
+    source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
+    license: "NIH Clinical Center (atribuição obrigatória)",
   }
 ];
 
