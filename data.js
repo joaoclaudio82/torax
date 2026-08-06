@@ -375,6 +375,23 @@ export const studies = [
     learningTags: ["NIH", "Pneumothorax"],
     source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
     license: "NIH Clinical Center (atribuição obrigatória)",
+  },
+  {
+    id: "nih-pneumonia",
+    title: "NIH — Pneumonia",
+    subtitle: "Pneumonia|Nodule · PA",
+    image: "assets/nih-demo/00000056_000.png",
+    alt: "Radiografia NIH com rótulo Pneumonia",
+    badge: "NIH demo",
+    description: "Caso multilabel com pneumonia e nódulo.",
+    observations: [
+      "Rótulos NIH: Nodule|Pneumonia",
+      "Incidência PA",
+      "Teste o grupo educacional de pneumonia no ranking",
+    ],
+    learningTags: ["NIH", "Pneumonia", "Nodule"],
+    source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
+    license: "NIH Clinical Center (atribuição obrigatória)",
   }
 ];
 
