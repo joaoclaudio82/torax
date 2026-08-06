@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node scripts/run-python.mjs -m uvicorn main:app --host 127.0.0.1 --port 8000",
+    "download:nih-demo": "node scripts/run-python.mjs scripts/download_nih_demo.py",
     "test": "npm run test:full",
     "test:fast": "node --test && node scripts/run-python.mjs -m pytest test_api_errors.py test_analysis_cache.py test_comparison.py test_decision_context.py test_dicom_processing.py test_imaging_quality.py test_metrics.py test_radiograph_quality.py test_rate_limit.py test_xray_model_stats.py -q",
     "test:full": "npm run test:fast && node scripts/run-python.mjs -m pytest smoke_test.py -q"
