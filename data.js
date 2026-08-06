@@ -255,6 +255,40 @@ export const studies = [
     learningTags: ["NIH", "Infiltration"],
     source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
     license: "NIH Clinical Center (atribuição obrigatória)",
+  },
+  {
+    id: "nih-consolidation",
+    title: "NIH — Consolidação",
+    subtitle: "Consolidation · AP",
+    image: "assets/nih-demo/00000032_016.png",
+    alt: "Radiografia NIH com rótulo Consolidation",
+    badge: "NIH demo",
+    description: "Caso AP com rótulo único de consolidação.",
+    observations: [
+      "Rótulo NIH: Consolidation",
+      "Incidência AP",
+      "Relacionada ao grupo educacional de pneumonia",
+    ],
+    learningTags: ["NIH", "Consolidation"],
+    source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
+    license: "NIH Clinical Center (atribuição obrigatória)",
+  },
+  {
+    id: "nih-emphysema",
+    title: "NIH — Enfisema",
+    subtitle: "Emphysema · PA",
+    image: "assets/nih-demo/00000009_000.png",
+    alt: "Radiografia NIH com rótulo Emphysema",
+    badge: "NIH demo",
+    description: "Caso com rótulo único de enfisema.",
+    observations: [
+      "Rótulo NIH: Emphysema",
+      "Incidência PA",
+      "Avalie hipertransparência e silhueta",
+    ],
+    learningTags: ["NIH", "Emphysema"],
+    source: "https://nihcc.app.box.com/v/ChestXray-NIHCC",
+    license: "NIH Clinical Center (atribuição obrigatória)",
   }
 ];
 
