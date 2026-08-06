@@ -4,3 +4,5 @@ __pycache__/
 *.py[cod]
 .DS_Store
 torax.zip
+assets/nih-demo/*.png
+assets/nih-demo/manifest.json
