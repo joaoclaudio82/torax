@@ -281,7 +281,23 @@ def download_pack() -> dict:
 def main() -> int:
     try:
         download_pack()
-    except (urllib.error.URLError, OSError, RuntimeError, ValueError) as exc:
+    except urllib.error.HTTPError as exc:
+        print(
+            f"Falha HTTP ao acessar o mirror NIH ({exc.code}). "
+            f"Verifique a conexão e o espelho Hugging Face / NIH Box.\n"
+            f"Detalhe: {exc}",
+            file=sys.stderr,
+        )
+        return 1
+    except urllib.error.URLError as exc:
+        print(
+            "Falha de rede ao baixar o mini-banco NIH. "
+            "Confira DNS/proxy e tente novamente.\n"
+            f"Detalhe: {exc}",
+            file=sys.stderr,
+        )
+        return 1
+    except (OSError, RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"Falha ao baixar o mini-banco NIH: {exc}", file=sys.stderr)
         return 1
     return 0

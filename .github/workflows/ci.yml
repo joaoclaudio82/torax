@@ -40,8 +40,45 @@ jobs:
       - name: Run fast suite
         run: npm run test:fast
 
-      - name: Unit tests via pytest.ini
-        run: .venv/bin/python -m pytest test_metrics.py test_radiograph_quality.py test_rate_limit.py test_analysis_cache.py
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Create environment
+        run: python -m venv .venv
+
+      - name: Install dependencies
+        run: .venv/bin/python -m pip install -r requirements.txt pytest
+
+      - name: Cache model weights
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.torchxrayvision
+            ~/.cache/torch
+          key: torchxrayvision-${{ runner.os }}-densenet121
+
+      - name: Run smoke pipeline
+        run: npm run test:full
+        env:
+          # Cold start may download DenseNet weights on first run.
+          TORCHXRAYVISION_CACHE: ${{ github.workspace }}/.torchxrayvision
 
   docker:
     runs-on: ubuntu-latest

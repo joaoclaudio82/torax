@@ -6,6 +6,11 @@ services:
       - "8000:8000"
     environment:
       THORAX_ALLOWED_ORIGINS: http://localhost:8000,http://127.0.0.1:8000
+      # THORAX_ADMIN_TOKEN: change-me
+      # THORAX_TRUST_PROXY: "0"
+      # THORAX_RATE_LIMIT_MAX: "30"
+      # THORAX_RATE_LIMIT_WINDOW: "60"
+      # THORAX_JOB_TTL_SECONDS: "1800"
     volumes:
       - model-cache:/home/thorax/.torchxrayvision
     restart: unless-stopped

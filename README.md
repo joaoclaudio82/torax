@@ -55,11 +55,14 @@ O `main.py` expõe os endpoints:
 
 - `GET /health`: carrega o modelo e informa seu estado.
 - `GET /api/info`: versão da API e capacidades disponíveis.
+- `GET /api/nih-manifest`: lista o mini-acervo NIH quando `assets/nih-demo/manifest.json` existe.
 - `POST /analyze`: recebe uma imagem, executa o pipeline e retorna as previsões,
   a qualidade de entrada, a radiografia processada e o mapa de atenção.
-- `POST /analyze/async` e `GET /jobs/{id}`: análise assíncrona com progresso.
+- `POST /analyze/gradcam`: recalcula só o mapa de atenção para outra classe-alvo.
+- `POST /analyze/async`, `GET /jobs/{id}` e `POST /jobs/{id}/cancel`: análise assíncrona com progresso e cancelamento.
 - `POST /compare`: processa duas imagens e ordena as maiores diferenças entre
   as probabilidades produzidas pelo modelo.
+- `POST /admin/cache/clear`: limpa o cache em memória (requer `THORAX_ADMIN_TOKEN`).
 - `GET /`: entrega a interface web.
 
 O processamento é dividido em módulos:
@@ -194,21 +197,53 @@ leve mede a estabilidade das probabilidades sob flip e ruído.
 ### Cache, jobs e limite de taxa
 
 Resultados recentes são reutilizados por hash do arquivo. A análise pode
-correr em job assíncrono com estágios de progresso. Requisições `POST /analyze*`
-podem ser limitadas por origem para demos locais.
+correr em job assíncrono com estágios de progresso e TTL. Requisições
+`POST /analyze*`, `POST /analyze/gradcam` e `POST /compare` podem ser
+limitadas por origem para demos locais.
+
+### Variáveis de ambiente
+
+| Variável | Padrão | Função |
+| --- | --- | --- |
+| `THORAX_ALLOWED_ORIGINS` | `http://127.0.0.1:8000,http://localhost:8000` | Origens CORS permitidas (separadas por vírgula). |
+| `THORAX_RATE_LIMIT_MAX` | `30` | Máximo de pedidos por janela e origem. |
+| `THORAX_RATE_LIMIT_WINDOW` | `60` | Janela do rate limit em segundos. |
+| `THORAX_TRUST_PROXY` | desligado | Se `1`/`true`, usa o primeiro IP de `X-Forwarded-For`. |
+| `THORAX_JOB_MAX` | `64` | Máximo de jobs retidos em memória. |
+| `THORAX_JOB_TTL_SECONDS` | `1800` | Tempo de vida dos jobs concluídos/cancelados. |
+| `THORAX_ADMIN_TOKEN` | vazio | Token do cabeçalho `X-Admin-Token` para `/admin/cache/clear`. |
+
+### Docker
+
+Build e execução local:
+
+```bash
+docker compose up --build
+```
+
+A API fica em `http://127.0.0.1:8000`. O volume `model-cache` persiste os pesos
+do `torchxrayvision`. Para limpar o cache de análises em produção demo, defina
+`THORAX_ADMIN_TOKEN` no `docker-compose.yml` e chame:
+
+```bash
+curl -X POST http://127.0.0.1:8000/admin/cache/clear -H "X-Admin-Token: SEU_TOKEN"
+```
+
+Atrás de um reverse proxy, ative `THORAX_TRUST_PROXY=1` apenas se o proxy
+for confiável e propaga `X-Forwarded-For` corretamente.
 
 ### Segurança e observabilidade
 
 A API valida extensão, MIME e assinatura binária, limita uploads, restringe
-CORS e adiciona CSP, identificador de requisição e cabeçalhos contra sniffing e
-iframes. Tempos de pré-processamento, inferência, Grad-CAM e requisição são
-medidos separadamente.
+CORS e adiciona CSP sem `unsafe-inline` (scripts e estilos locais),
+identificador de requisição e cabeçalhos contra sniffing e iframes. Tempos de
+pré-processamento, inferência, Grad-CAM e requisição são medidos separadamente.
 
 ### Infraestrutura
 
 O container executa como usuário sem privilégios e mantém o cache dos pesos em
-volume separado. O GitHub Actions compila o Python, executa a suíte rápida em
-Linux e verifica a construção da imagem Docker.
+volume separado. O GitHub Actions executa a suíte rápida, o smoke ponta a ponta
+e verifica a construção da imagem Docker.
 
 ### Pipeline
 
