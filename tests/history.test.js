@@ -5,6 +5,7 @@ import {
   addHistoryEntry,
   clearHistory,
   createEducationalReport,
+  entryFromAnalysis,
   MAX_HISTORY_ITEMS,
   predictionsToCsv,
   readHistory,
@@ -62,5 +63,40 @@ test("a exportação CSV inclui cabeçalho e linhas de predição", () => {
   });
   assert.match(csv, /^filename,timestamp,pathology/);
   assert.match(csv, /study\.jpg/);
+  assert.match(csv, /Effusion,0\.81,above/);
+});
+
+test("entryFromAnalysis persiste threshold_band e snapshot reabrível", () => {
+  const entry = entryFromAnalysis(
+    {
+      target_pathology: "Effusion",
+      predictions: [
+        {
+          pathology: "Effusion",
+          prob: 0.81,
+          above_threshold: true,
+          threshold_band: "above",
+          threshold_margin: 0.2,
+          ambiguity: 0.1,
+        },
+      ],
+      input_quality: { score: 90 },
+      radiograph_quality: { exposure: { label: "adequada" } },
+      image_metadata: { format: "PNG" },
+      explainability: { target_pathology: "Effusion" },
+      prediction_stability: { stability_label: "estável", mean_std: 0.01 },
+      image_original: "data:image/png;base64,aaa",
+      image_overlay: "data:image/png;base64,bbb",
+      decision_context: { borderline_classes: [] },
+      timings: { total_ms: 10 },
+      disclaimer: "educacional",
+    },
+    { filename: "study.jpg", systematicReview: { checklist: ["A"] } },
+  );
+  assert.equal(entry.topPredictions[0].threshold_band, "above");
+  assert.equal(entry.predictionStability.stability_label, "estável");
+  assert.equal(entry.systematicReview.checklist[0], "A");
+  assert.equal(entry.snapshot.target_pathology, "Effusion");
+  const csv = predictionsToCsv(entry);
   assert.match(csv, /Effusion,0\.81,above/);
 });
