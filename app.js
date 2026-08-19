@@ -1,9 +1,10 @@
-import { findStudy, studies } from "./data.js";
+import { mergeNihStudies, studies } from "./data.js";
 import { glossaryEntry } from "./glossary.js";
 import {
   addHistoryEntry,
   clearHistory,
   createEducationalReport,
+  entryFromAnalysis,
   predictionsToCsv,
   readHistory,
 } from "./history.js";
@@ -20,14 +21,60 @@ const source = document.querySelector("#study-source");
 const license = document.querySelector("#study-license");
 const dialog = document.querySelector("#image-dialog");
 const dialogImage = document.querySelector("#dialog-image");
-let selectedStudyId = studies[0].id;
+let catalogStudies = [...studies];
+let selectedStudyId = catalogStudies[0].id;
 let viewerState = { ...DEFAULT_VIEW };
 let studyMode = false;
 let studyRevealed = false;
+let activeJobId = null;
+let pollAbort = null;
+
+function currentStudy(id = selectedStudyId) {
+  return catalogStudies.find((study) => study.id === id) ?? catalogStudies[0];
+}
+
+function updateNihBanner(manifest) {
+  const banner = document.querySelector("#nih-pack-banner");
+  if (!banner) return;
+  if (manifest?.available) {
+    banner.hidden = true;
+    banner.innerHTML = "";
+    return;
+  }
+  banner.hidden = false;
+  banner.innerHTML = `
+    <strong>Pack NIH não carregado.</strong>
+    <span>${escapeHtml(manifest?.message || "Baixe as radiografias reais para o atlas de teste.")}</span>
+    <code>${escapeHtml(manifest?.download_command || "npm run download:nih-demo")}</code>
+  `;
+}
+
+async function loadNihCatalog() {
+  try {
+    const response = await fetch("/api/nih-manifest");
+    const manifest = await response.json();
+    if (!response.ok) throw new Error(manifest.detail || `HTTP ${response.status}`);
+    catalogStudies = mergeNihStudies(studies, manifest.images || []);
+    updateNihBanner(manifest);
+  } catch {
+    catalogStudies = [...studies];
+    updateNihBanner({
+      available: false,
+      message: "Não foi possível consultar o manifesto NIH.",
+      download_command: "npm run download:nih-demo",
+    });
+  }
+  document.querySelector("#image-count").textContent = String(catalogStudies.length);
+  if (!catalogStudies.some((study) => study.id === selectedStudyId)) {
+    selectedStudyId = catalogStudies[0].id;
+  }
+  populateComparisonSelects();
+  renderButtons(selectedStudyId);
+}
 
 async function initOperationalStatus() {
-  document.querySelector("#image-count").textContent = studies.length;
-  document.querySelector("#study-count").textContent = studies.length;
+  document.querySelector("#image-count").textContent = catalogStudies.length;
+  document.querySelector("#study-count").textContent = catalogStudies.length;
   const modelStatus = document.querySelector("#model-status");
 
   try {
@@ -50,6 +97,7 @@ async function initOperationalStatus() {
     modelStatus.querySelector("span").textContent = "Modelo indisponível";
     modelStatus.classList.add("error");
   }
+  await loadNihCatalog();
 }
 
 function applyViewerState() {
@@ -77,8 +125,8 @@ function filteredStudies() {
   const query = (document.querySelector("#study-filter")?.value || "")
     .trim()
     .toLowerCase();
-  if (!query) return studies;
-  return studies.filter((study) => {
+  if (!query) return catalogStudies;
+  return catalogStudies.filter((study) => {
     const haystack = [
       study.title,
       study.subtitle,
@@ -117,7 +165,7 @@ function renderButtons(activeId) {
 }
 
 function renderStudy(id, animate = true) {
-  const study = findStudy(id);
+  const study = currentStudy(id);
   selectedStudyId = study.id;
   resetViewer();
 
@@ -214,7 +262,7 @@ document.querySelector("#study-mode-toggle").addEventListener("click", () => {
 });
 
 document.querySelector("#reveal-study").addEventListener("click", () => {
-  const study = findStudy(selectedStudyId);
+  const study = currentStudy(selectedStudyId);
   const hypothesis = document.querySelector("#study-hypothesis").value;
   const matched = study.learningTags.includes(hypothesis);
   studyRevealed = true;
@@ -263,32 +311,59 @@ const actionButtons = document.querySelectorAll(".analysis-actions button");
 let currentAnalysisFile = null;
 let latestAnalysis = null;
 
+async function cancelActiveJob() {
+  if (pollAbort) {
+    pollAbort.abort();
+    pollAbort = null;
+  }
+  if (activeJobId) {
+    const jobId = activeJobId;
+    activeJobId = null;
+    try {
+      await fetch(`/jobs/${jobId}/cancel`, { method: "POST" });
+    } catch {
+      // ignore cancel errors
+    }
+  }
+}
+
 async function pollJob(jobId) {
   const stageLabels = {
     queued: "Na fila",
     starting: "Iniciando",
     preprocessing: "Pré-processando",
     inference: "Inferência",
+    "inference-cache": "Inferência (cache)",
     gradcam: "Grad-CAM",
     stability: "Estabilidade",
     finalizing: "Finalizando",
     cache: "Cache",
     done: "Concluído",
     error: "Erro",
+    cancelled: "Cancelado",
   };
-  for (let attempt = 0; attempt < 120; attempt += 1) {
-    const response = await fetch(`/jobs/${jobId}`);
-    const job = await response.json();
-    if (!response.ok) throw new Error(job.detail ?? `HTTP ${response.status}`);
-    const pct = Math.round((job.progress || 0) * 100);
-    const stage = stageLabels[job.stage] || job.stage;
-    status.textContent = `${stage}… ${pct}%`;
-    updateProgressBar(job.progress || 0, stage);
-    if (job.status === "completed") return job.result;
-    if (job.status === "failed") throw new Error(job.error || "Falha no job.");
-    await new Promise((resolve) => setTimeout(resolve, 400));
+  pollAbort = new AbortController();
+  activeJobId = jobId;
+  try {
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      const response = await fetch(`/jobs/${jobId}`, {
+        signal: pollAbort.signal,
+      });
+      const job = await response.json();
+      if (!response.ok) throw new Error(job.detail ?? `HTTP ${response.status}`);
+      const pct = Math.round((job.progress || 0) * 100);
+      const stage = stageLabels[job.stage] || job.stage;
+      status.textContent = `${stage}… ${pct}%`;
+      updateProgressBar(job.progress || 0, stage);
+      if (job.status === "completed") return job.result;
+      if (job.status === "failed") throw new Error(job.error || "Falha no job.");
+      if (job.status === "cancelled") throw new Error("Análise cancelada.");
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+    throw new Error("Tempo esgotado aguardando a análise.");
+  } finally {
+    if (activeJobId === jobId) activeJobId = null;
   }
-  throw new Error("Tempo esgotado aguardando a análise.");
 }
 
 function updateProgressBar(progress, stage) {
@@ -302,6 +377,7 @@ function updateProgressBar(progress, stage) {
 }
 
 async function analyzeFile(file, targetPathology = null) {
+  await cancelActiveJob();
   currentAnalysisFile = file;
   const formData = new FormData();
   formData.append("file", file);
@@ -317,8 +393,21 @@ async function analyzeFile(file, targetPathology = null) {
   updateProgressBar(0.05, "starting");
 
   try {
-    const useAsync = document.querySelector("#use-async-analyze")?.checked;
     let payload;
+    if (targetPathology && latestAnalysis) {
+      const response = await fetch("/analyze/gradcam", {
+        method: "POST",
+        body: formData,
+      });
+      payload = await response.json();
+      if (!response.ok) throw new Error(payload.detail ?? `HTTP ${response.status}`);
+      updateProgressBar(1, "done");
+      renderAnalysis(payload, { saveToHistory: false });
+      status.textContent = "Mapa Grad-CAM atualizado.";
+      return;
+    }
+
+    const useAsync = document.querySelector("#use-async-analyze")?.checked;
     if (useAsync) {
       const started = await fetch("/analyze/async", {
         method: "POST",
@@ -338,7 +427,11 @@ async function analyzeFile(file, targetPathology = null) {
       ? "Análise concluída (cache)."
       : "Análise concluída.";
   } catch (error) {
-    status.textContent = `Não foi possível analisar: ${error.message}`;
+    if (error.name === "AbortError") {
+      status.textContent = "Análise cancelada.";
+    } else {
+      status.textContent = `Não foi possível analisar: ${error.message}`;
+    }
   } finally {
     actionButtons.forEach((button) => {
       button.disabled = false;
@@ -523,14 +616,19 @@ function renderPerformance(timings) {
     panel.hidden = true;
     return;
   }
+  const stabilityRow =
+    timings.stability_ms > 0
+      ? `<div><dt>Estabilidade (TTA)</dt><dd>${timings.stability_ms} ms</dd></div>`
+      : "";
   panel.hidden = false;
   panel.innerHTML = `
     <span>Tempo de processamento</span>
     <dl>
-      <div><dt>Pré-processamento</dt><dd>${timings.preprocessing_ms} ms</dd></div>
-      <div><dt>Inferência</dt><dd>${timings.inference_ms} ms</dd></div>
-      <div><dt>Grad-CAM</dt><dd>${timings.gradcam_ms} ms</dd></div>
-      <div><dt>Total</dt><dd>${timings.total_ms} ms</dd></div>
+      <div><dt>Pré-processamento</dt><dd>${timings.preprocessing_ms ?? "—"} ms</dd></div>
+      <div><dt>Inferência</dt><dd>${timings.inference_ms ?? "—"} ms</dd></div>
+      <div><dt>Grad-CAM</dt><dd>${timings.gradcam_ms ?? "—"} ms</dd></div>
+      ${stabilityRow}
+      <div><dt>Total</dt><dd>${timings.total_ms ?? "—"} ms</dd></div>
     </dl>
   `;
 }
@@ -564,23 +662,21 @@ async function createThumbnail(dataUrl) {
   });
 }
 
+function readSystematicReview() {
+  const checked = [
+    ...document.querySelectorAll(".systematic-review input:checked"),
+  ].map((input) => input.value);
+  if (!checked.length) return null;
+  return { checklist: checked, saved_at: new Date().toISOString() };
+}
+
 async function saveAnalysisToHistory(data) {
   const thumbnail = await createThumbnail(data.image_original);
-  const entry = {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    timestamp: new Date().toISOString(),
+  const entry = entryFromAnalysis(data, {
     filename: currentAnalysisFile?.name ?? "imagem-sem-nome",
-    targetPathology: data.target_pathology,
-    topPredictions: data.predictions.slice(0, 5).map((prediction) => ({
-      pathology: prediction.pathology,
-      probability: prediction.prob,
-      aboveThreshold: prediction.above_threshold,
-    })),
-    quality: data.input_quality,
-    explainability: data.explainability,
-    imageMetadata: data.image_metadata,
     thumbnail,
-  };
+    systematicReview: readSystematicReview(),
+  });
   addHistoryEntry(entry);
   renderHistory(entry.id);
 }
@@ -617,12 +713,18 @@ function renderHistory(selectedId = null) {
 }
 
 function renderHistoryPreview(entry) {
-  const predictions = entry.topPredictions
+  const predictions = (entry.topPredictions || [])
     .map(
       (prediction) =>
-        `<li><span>${escapeHtml(prediction.pathology)}</span><strong>${(prediction.probability * 100).toFixed(1)}%</strong></li>`,
+        `<li><span>${escapeHtml(prediction.pathology)}</span><strong>${((prediction.probability ?? 0) * 100).toFixed(1)}%${prediction.threshold_band ? ` · ${escapeHtml(prediction.threshold_band)}` : ""}</strong></li>`,
     )
     .join("");
+  const stability = entry.predictionStability?.stability_label
+    ? `<p>Estabilidade: ${escapeHtml(entry.predictionStability.stability_label)}</p>`
+    : "";
+  const reopen = entry.snapshot
+    ? `<button type="button" class="secondary-button" id="reopen-history" data-history-id="${entry.id}">Reabrir análise</button>`
+    : "";
   document.querySelector("#history-preview").innerHTML = `
     <div class="history-preview-header">
       ${entry.thumbnail ? `<img src="${entry.thumbnail}" alt="" />` : ""}
@@ -630,11 +732,19 @@ function renderHistoryPreview(entry) {
         <span class="section-label">Registro local</span>
         <h3>${escapeHtml(entry.filename)}</h3>
         <p>Alvo Grad-CAM: ${escapeHtml(entry.targetPathology)}</p>
+        ${stability}
       </div>
     </div>
     <ul>${predictions}</ul>
     <p class="history-quality">Qualidade de entrada: ${entry.quality?.score ?? "—"}/100</p>
+    ${reopen}
   `;
+  document.querySelector("#reopen-history")?.addEventListener("click", () => {
+    if (!entry.snapshot) return;
+    renderAnalysis(entry.snapshot, { saveToHistory: false });
+    status.textContent = `Análise reaberta do histórico: ${entry.filename}`;
+    document.querySelector("#analisar")?.scrollIntoView({ behavior: "smooth" });
+  });
 }
 
 async function studyToFile(study) {
@@ -668,7 +778,7 @@ fileInput.addEventListener("change", () => {
 });
 
 document.querySelector("#use-sample").addEventListener("click", async () => {
-  const study = findStudy(selectedStudyId);
+  const study = currentStudy(selectedStudyId);
   status.textContent = `Preparando ${study.title}…`;
   const file = await studyToFile(study);
   analyzeFile(file);
@@ -712,42 +822,64 @@ document
       `${checked.length} etapa(s) registrada(s) somente nesta sessão.`;
   });
 
-const comparisonStudies = studies.filter((study) => study.id !== "anatomy");
 const comparisonA = document.querySelector("#comparison-a");
 const comparisonB = document.querySelector("#comparison-b");
-const comparisonOptions = comparisonStudies
-  .map((study) => `<option value="${study.id}">${study.title}</option>`)
-  .join("");
-comparisonA.innerHTML = comparisonOptions;
-comparisonB.innerHTML = comparisonOptions;
-comparisonB.value = comparisonStudies.find((study) => study.id === "lobar-pneumonia")?.id
-  ?? comparisonStudies[1].id;
+
+function populateComparisonSelects() {
+  const comparisonStudies = catalogStudies.filter((study) => study.id !== "anatomy");
+  const comparisonOptions = comparisonStudies
+    .map((study) => `<option value="${study.id}">${study.title}</option>`)
+    .join("");
+  const previousA = comparisonA.value;
+  const previousB = comparisonB.value;
+  comparisonA.innerHTML =
+    `<option value="__upload__">Arquivo enviado (A)</option>${comparisonOptions}`;
+  comparisonB.innerHTML =
+    `<option value="__upload__">Arquivo enviado (B)</option>${comparisonOptions}`;
+  if ([...comparisonA.options].some((option) => option.value === previousA)) {
+    comparisonA.value = previousA;
+  }
+  if ([...comparisonB.options].some((option) => option.value === previousB)) {
+    comparisonB.value = previousB;
+  } else {
+    comparisonB.value =
+      comparisonStudies.find((study) => study.id === "lobar-pneumonia")?.id
+      ?? comparisonStudies[1]?.id
+      ?? comparisonStudies[0]?.id;
+  }
+}
+
+async function resolveComparisonFile(side) {
+  const select = side === "a" ? comparisonA : comparisonB;
+  const upload = document.querySelector(`#comparison-file-${side}`);
+  if (select.value === "__upload__") {
+    const file = upload?.files?.[0];
+    if (!file) throw new Error(`Selecione o arquivo da imagem ${side.toUpperCase()}.`);
+    return { file, label: file.name };
+  }
+  const study = currentStudy(select.value);
+  return { file: await studyToFile(study), label: study.title };
+}
+
+populateComparisonSelects();
 
 document.querySelector("#run-comparison").addEventListener("click", async () => {
   const button = document.querySelector("#run-comparison");
   const comparisonStatus = document.querySelector("#comparison-status");
-  const studyA = findStudy(comparisonA.value);
-  const studyB = findStudy(comparisonB.value);
-
-  if (studyA.id === studyB.id) {
-    comparisonStatus.textContent = "Escolha duas imagens diferentes.";
-    return;
-  }
-
   button.disabled = true;
   comparisonStatus.textContent = "Comparando respostas do modelo…";
   try {
-    const [fileA, fileB] = await Promise.all([
-      studyToFile(studyA),
-      studyToFile(studyB),
+    const [resolvedA, resolvedB] = await Promise.all([
+      resolveComparisonFile("a"),
+      resolveComparisonFile("b"),
     ]);
     const formData = new FormData();
-    formData.append("file_a", fileA);
-    formData.append("file_b", fileB);
+    formData.append("file_a", resolvedA.file);
+    formData.append("file_b", resolvedB.file);
     const response = await fetch("/compare", { method: "POST", body: formData });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.detail ?? `HTTP ${response.status}`);
-    renderComparison(payload, studyA, studyB);
+    renderComparison(payload, resolvedA.label, resolvedB.label);
     comparisonStatus.textContent = "Comparação concluída.";
   } catch (error) {
     comparisonStatus.textContent = `Não foi possível comparar: ${error.message}`;
@@ -756,13 +888,13 @@ document.querySelector("#run-comparison").addEventListener("click", async () => 
   }
 });
 
-function renderComparison(data, studyA, studyB) {
+function renderComparison(data, labelA, labelB) {
   document.querySelector("#comparison-image-a").src = data.image_a;
   document.querySelector("#comparison-image-b").src = data.image_b;
   document.querySelector("#comparison-caption-a").textContent =
-    `${studyA.title} · qualidade ${data.quality_a.score}/100`;
+    `${labelA} · qualidade ${data.quality_a.score}/100`;
   document.querySelector("#comparison-caption-b").textContent =
-    `${studyB.title} · qualidade ${data.quality_b.score}/100`;
+    `${labelB} · qualidade ${data.quality_b.score}/100`;
   document.querySelector("#comparison-deltas").innerHTML = data.top_changes
     .map((item) => {
       const deltaPercent = item.delta * 100;

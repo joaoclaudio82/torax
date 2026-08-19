@@ -8,12 +8,6 @@
       content="Biblioteca e protótipo educacional para análise de radiografias de tórax."
     />
     <title>Thorax — Análise de radiografias</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
-      rel="stylesheet"
-    />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -85,6 +79,7 @@
             />
           </label>
           <div id="study-buttons"></div>
+          <div class="nih-pack-banner" id="nih-pack-banner" hidden></div>
         </aside>
 
         <article class="viewer">
@@ -169,11 +164,23 @@
           <label>
             <span>Imagem A</span>
             <select id="comparison-a"></select>
+            <input
+              id="comparison-file-a"
+              type="file"
+              accept=".png,.jpg,.jpeg,.dcm,.dicom,image/*"
+              aria-label="Upload da imagem A"
+            />
           </label>
           <span class="comparison-versus">versus</span>
           <label>
             <span>Imagem B</span>
             <select id="comparison-b"></select>
+            <input
+              id="comparison-file-b"
+              type="file"
+              accept=".png,.jpg,.jpeg,.dcm,.dicom,image/*"
+              aria-label="Upload da imagem B"
+            />
           </label>
           <button id="run-comparison" type="button" class="primary-button">
             Comparar imagens
