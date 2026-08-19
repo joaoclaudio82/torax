@@ -3,11 +3,19 @@ Fila simples em memória para análises assíncronas educacionais.
 """
 from __future__ import annotations
 
+import os
 import threading
 import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return int(raw)
 
 
 @dataclass
@@ -18,28 +26,70 @@ class Job:
     stage: str = "queued"
     result: dict | None = None
     error: str | None = None
+    cancel_requested: bool = False
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
 
 
 class JobStore:
-    def __init__(self, max_jobs: int = 64):
-        self.max_jobs = max_jobs
+    def __init__(
+        self,
+        max_jobs: int | None = None,
+        ttl_seconds: int | None = None,
+    ):
+        self.max_jobs = max_jobs if max_jobs is not None else _env_int("THORAX_JOB_MAX", 64)
+        self.ttl_seconds = (
+            ttl_seconds
+            if ttl_seconds is not None
+            else _env_int("THORAX_JOB_TTL_SECONDS", 1800)
+        )
         self._jobs: dict[str, Job] = {}
         self._lock = threading.Lock()
+
+    def _purge_locked(self, now: float | None = None) -> None:
+        now = time.time() if now is None else now
+        expired = [
+            job_id
+            for job_id, job in self._jobs.items()
+            if now - job.updated_at > self.ttl_seconds
+        ]
+        for job_id in expired:
+            del self._jobs[job_id]
+        while len(self._jobs) > self.max_jobs:
+            oldest = min(self._jobs.values(), key=lambda item: item.created_at)
+            del self._jobs[oldest.id]
 
     def create(self) -> Job:
         job = Job(id=str(uuid.uuid4()))
         with self._lock:
+            self._purge_locked()
             self._jobs[job.id] = job
-            while len(self._jobs) > self.max_jobs:
-                oldest = min(self._jobs.values(), key=lambda item: item.created_at)
-                del self._jobs[oldest.id]
+            self._purge_locked()
         return job
 
     def get(self, job_id: str) -> Job | None:
         with self._lock:
+            self._purge_locked()
             return self._jobs.get(job_id)
+
+    def cancel(self, job_id: str) -> Job | None:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                return None
+            job.cancel_requested = True
+            if job.status in {"queued", "running"}:
+                job.status = "cancelled"
+                job.stage = "cancelled"
+                job.progress = 1.0
+                job.error = "Cancelado pelo cliente."
+            job.updated_at = time.time()
+            return job
+
+    def is_cancelled(self, job_id: str) -> bool:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            return bool(job and (job.cancel_requested or job.status == "cancelled"))
 
     def update(
         self,
@@ -54,6 +104,12 @@ class JobStore:
         with self._lock:
             job = self._jobs.get(job_id)
             if job is None:
+                return
+            if job.cancel_requested and status not in {"cancelled", "failed"}:
+                job.status = "cancelled"
+                job.stage = "cancelled"
+                job.progress = 1.0
+                job.updated_at = time.time()
                 return
             if status is not None:
                 job.status = status
@@ -77,25 +133,52 @@ class JobStore:
             "result": job.result,
             "created_at": job.created_at,
             "updated_at": job.updated_at,
+            "cancel_requested": job.cancel_requested,
         }
 
 
 store = JobStore()
 
 
+class JobCancelled(Exception):
+    """Sinaliza cancelamento cooperativo do worker."""
+
+
 def run_job(job_id: str, worker: Callable[[Callable[..., None]], dict]) -> None:
     def report(**kwargs) -> None:
+        if store.is_cancelled(job_id):
+            raise JobCancelled()
         store.update(job_id, **kwargs)
+
+    if store.is_cancelled(job_id):
+        return
 
     store.update(job_id, status="running", progress=0.05, stage="starting")
     try:
         result = worker(report)
+        if store.is_cancelled(job_id):
+            store.update(
+                job_id,
+                status="cancelled",
+                progress=1.0,
+                stage="cancelled",
+                error="Cancelado pelo cliente.",
+            )
+            return
         store.update(
             job_id,
             status="completed",
             progress=1.0,
             stage="done",
             result=result,
+        )
+    except JobCancelled:
+        store.update(
+            job_id,
+            status="cancelled",
+            progress=1.0,
+            stage="cancelled",
+            error="Cancelado pelo cliente.",
         )
     except Exception as exc:  # noqa: BLE001
         store.update(

@@ -6,6 +6,7 @@ Evita reprocessar o mesmo upload durante a sessão do servidor.
 from __future__ import annotations
 
 import hashlib
+import sys
 import threading
 import time
 from collections import OrderedDict
@@ -53,14 +54,27 @@ class AnalysisCache:
             while len(self._items) > self.max_entries:
                 self._items.popitem(last=False)
 
+    def clear(self) -> int:
+        with self._lock:
+            removed = len(self._items)
+            self._items.clear()
+            return removed
+
     def stats(self) -> dict:
         with self._lock:
+            approx_bytes = 0
+            for _created, payload in self._items.values():
+                approx_bytes += sys.getsizeof(payload)
+                for key, value in payload.items():
+                    if isinstance(value, str):
+                        approx_bytes += len(value)
             return {
                 "entries": len(self._items),
                 "max_entries": self.max_entries,
                 "ttl_seconds": self.ttl_seconds,
                 "hits": self.hits,
                 "misses": self.misses,
+                "approx_bytes": approx_bytes,
             }
 
 

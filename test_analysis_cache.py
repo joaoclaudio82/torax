@@ -10,6 +10,7 @@ def test_cache_hit_and_miss():
     stats = cache.stats()
     assert stats["hits"] == 1
     assert stats["misses"] == 1
+    assert "approx_bytes" in stats
 
 
 def test_cache_evicts_oldest_entries():
@@ -20,3 +21,12 @@ def test_cache_evicts_oldest_entries():
     assert cache.get("a") is None
     assert cache.get("b") == {"n": 2}
     assert cache.get("c") == {"n": 3}
+
+
+def test_cache_clear_resets_entries():
+    cache = AnalysisCache(max_entries=2, ttl_seconds=60)
+    cache.set("a", {"n": 1})
+    removed = cache.clear()
+    assert removed == 1
+    assert cache.get("a") is None
+    assert cache.stats()["entries"] == 0
