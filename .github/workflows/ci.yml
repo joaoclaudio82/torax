@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: thorax-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -34,8 +38,14 @@ jobs:
       - name: Install dependencies
         run: .venv/bin/python -m pip install -r requirements.txt pytest
 
+      - name: Verify dependency graph
+        run: .venv/bin/python -m pip check
+
       - name: Compile Python
-        run: .venv/bin/python -m compileall -q .
+        run: .venv/bin/python -m compileall -q *.py scripts
+
+      - name: Import hardened entrypoint
+        run: .venv/bin/python -c "from entrypoint import base_app; assert base_app.version == '2.3.0'"
 
       - name: Run fast suite
         run: npm run test:fast
@@ -66,6 +76,9 @@ jobs:
       - name: Install dependencies
         run: .venv/bin/python -m pip install -r requirements.txt pytest
 
+      - name: Verify dependency graph
+        run: .venv/bin/python -m pip check
+
       - name: Cache model weights
         uses: actions/cache@v4
         with:
@@ -77,7 +90,6 @@ jobs:
       - name: Run smoke pipeline
         run: npm run test:full
         env:
-          # Cold start may download DenseNet weights on first run.
           TORCHXRAYVISION_CACHE: ${{ github.workspace }}/.torchxrayvision
 
   docker:

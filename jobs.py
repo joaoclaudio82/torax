@@ -3,19 +3,14 @@ Fila simples em memória para análises assíncronas educacionais.
 """
 from __future__ import annotations
 
-import os
+from collections import Counter
 import threading
 import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-
-def _env_int(name: str, default: int) -> int:
-    raw = os.getenv(name)
-    if raw is None or raw.strip() == "":
-        return default
-    return int(raw)
+from config import settings
 
 
 @dataclass
@@ -37,14 +32,14 @@ class JobStore:
         max_jobs: int | None = None,
         ttl_seconds: int | None = None,
     ):
-        self.max_jobs = max_jobs if max_jobs is not None else _env_int("THORAX_JOB_MAX", 64)
+        self.max_jobs = max_jobs if max_jobs is not None else settings.job_max
         self.ttl_seconds = (
-            ttl_seconds
-            if ttl_seconds is not None
-            else _env_int("THORAX_JOB_TTL_SECONDS", 1800)
+            ttl_seconds if ttl_seconds is not None else settings.job_ttl_seconds
         )
         self._jobs: dict[str, Job] = {}
         self._lock = threading.Lock()
+        self.purged_expired = 0
+        self.purged_overflow = 0
 
     def _purge_locked(self, now: float | None = None) -> None:
         now = time.time() if now is None else now
@@ -55,9 +50,11 @@ class JobStore:
         ]
         for job_id in expired:
             del self._jobs[job_id]
+            self.purged_expired += 1
         while len(self._jobs) > self.max_jobs:
             oldest = min(self._jobs.values(), key=lambda item: item.created_at)
             del self._jobs[oldest.id]
+            self.purged_overflow += 1
 
     def create(self) -> Job:
         job = Job(id=str(uuid.uuid4()))
@@ -114,7 +111,7 @@ class JobStore:
             if status is not None:
                 job.status = status
             if progress is not None:
-                job.progress = progress
+                job.progress = max(0.0, min(1.0, float(progress)))
             if stage is not None:
                 job.stage = stage
             if result is not None:
@@ -135,6 +132,19 @@ class JobStore:
             "updated_at": job.updated_at,
             "cancel_requested": job.cancel_requested,
         }
+
+    def stats(self) -> dict:
+        with self._lock:
+            self._purge_locked()
+            counts = Counter(job.status for job in self._jobs.values())
+            return {
+                "jobs": len(self._jobs),
+                "status_counts": dict(counts),
+                "max_jobs": self.max_jobs,
+                "ttl_seconds": self.ttl_seconds,
+                "purged_expired": self.purged_expired,
+                "purged_overflow": self.purged_overflow,
+            }
 
 
 store = JobStore()
