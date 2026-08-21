@@ -7,7 +7,7 @@
     "start": "node scripts/run-python.mjs -m uvicorn entrypoint:app --host 127.0.0.1 --port 8000",
     "download:nih-demo": "node scripts/run-python.mjs scripts/download_nih_demo.py",
     "test": "npm run test:full",
-    "test:fast": "node --test && node scripts/run-python.mjs -m pytest -q",
+    "test:fast": "node --test && node scripts/run-python.mjs -m pytest -q --ignore=smoke_test.py",
     "test:full": "npm run test:fast && node scripts/run-python.mjs -m pytest smoke_test.py -q"
   }
 }
