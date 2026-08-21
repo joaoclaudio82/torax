@@ -3,11 +3,14 @@ from __future__ import annotations
 
 
 def build_model_card(model, *, weights: str) -> dict:
-    pathologies = [item for item in getattr(model, "pathologies", []) if item]
+    raw_pathologies = list(getattr(model, "pathologies", []) or [])
+    pathologies = [item for item in raw_pathologies if item]
     thresholds = getattr(model, "op_threshs", None)
     thresholds_available = 0
     if thresholds is not None:
-        for value in thresholds:
+        for pathology, value in zip(raw_pathologies, thresholds):
+            if not pathology:
+                continue
             try:
                 numeric = float(value)
             except (TypeError, ValueError):
