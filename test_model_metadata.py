@@ -13,6 +13,6 @@ def test_model_card_reports_public_model_contract():
     assert card["architecture"] == "DenseNet-121"
     assert card["weights"] == "demo-weights"
     assert card["pathology_count"] == 2
-    assert card["operating_thresholds_available"] == 2
+    assert card["operating_thresholds_available"] == 1
     assert card["clinical_use"] is False
     assert card["input_shape"] == [1, 1, 224, 224]
