@@ -17,6 +17,27 @@ from request_context import normalize_request_id
 from runtime_metrics import metrics
 
 
+_OPERATIONAL_PATHS = {
+    "/health/live",
+    "/health/ready",
+    "/metrics",
+    "/api/model",
+    "/api/config",
+}
+
+
+def _keep_catch_all_last(app) -> None:
+    """Mantém o fallback do frontend depois das rotas adicionadas dinamicamente."""
+    catch_all = [
+        route
+        for route in app.router.routes
+        if getattr(route, "path", None) == "/{filename:path}"
+    ]
+    for route in catch_all:
+        app.router.routes.remove(route)
+        app.router.routes.append(route)
+
+
 def install_operational_features(app):
     """Instala rotas e telemetria sem alterar os endpoints de análise legados."""
     if getattr(app.state, "operational_features_installed", False):
@@ -72,5 +93,6 @@ def install_operational_features(app):
     app.add_api_route("/metrics", metrics_payload, methods=["GET"], tags=["operations"])
     app.add_api_route("/api/model", model_card, methods=["GET"], tags=["metadata"])
     app.add_api_route("/api/config", runtime_config, methods=["GET"], tags=["metadata"])
+    _keep_catch_all_last(app)
     app.state.operational_features_installed = True
     return app
