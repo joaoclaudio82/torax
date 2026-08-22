@@ -11,6 +11,8 @@ import threading
 import time
 from collections import OrderedDict
 
+from config import settings
+
 
 class AnalysisCache:
     def __init__(self, max_entries: int = 32, ttl_seconds: int = 1800):
@@ -20,6 +22,8 @@ class AnalysisCache:
         self._lock = threading.Lock()
         self.hits = 0
         self.misses = 0
+        self.evictions = 0
+        self.expirations = 0
 
     @staticmethod
     def fingerprint(data: bytes, filename: str, extras: str = "") -> str:
@@ -41,6 +45,7 @@ class AnalysisCache:
             created, payload = item
             if now - created > self.ttl_seconds:
                 del self._items[key]
+                self.expirations += 1
                 self.misses += 1
                 return None
             self._items.move_to_end(key)
@@ -53,6 +58,7 @@ class AnalysisCache:
             self._items.move_to_end(key)
             while len(self._items) > self.max_entries:
                 self._items.popitem(last=False)
+                self.evictions += 1
 
     def clear(self) -> int:
         with self._lock:
@@ -68,14 +74,21 @@ class AnalysisCache:
                 for key, value in payload.items():
                     if isinstance(value, str):
                         approx_bytes += len(value)
+            attempts = self.hits + self.misses
             return {
                 "entries": len(self._items),
                 "max_entries": self.max_entries,
                 "ttl_seconds": self.ttl_seconds,
                 "hits": self.hits,
                 "misses": self.misses,
+                "hit_ratio": round(self.hits / attempts, 4) if attempts else 0.0,
+                "evictions": self.evictions,
+                "expirations": self.expirations,
                 "approx_bytes": approx_bytes,
             }
 
 
-cache = AnalysisCache()
+cache = AnalysisCache(
+    max_entries=settings.cache_max_entries,
+    ttl_seconds=settings.cache_ttl_seconds,
+)

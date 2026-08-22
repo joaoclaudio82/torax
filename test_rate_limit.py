@@ -16,12 +16,17 @@ def test_rate_limiter_allows_until_window_is_full():
     allowed, retry_after = limiter.allow("client-a")
     assert allowed is False
     assert retry_after >= 1
+    stats = limiter.stats()
+    assert stats["allowed_total"] == 2
+    assert stats["rejected_total"] == 1
+    assert stats["active_clients"] == 1
 
 
 def test_rate_limiter_isolates_clients():
     limiter = RateLimiter(max_requests=1, window_seconds=60)
     assert limiter.allow("a")[0] is True
     assert limiter.allow("b")[0] is True
+    assert limiter.stats()["active_clients"] == 2
 
 
 def test_is_rate_limited_path_covers_compare_and_analyze():

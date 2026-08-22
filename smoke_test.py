@@ -1,23 +1,28 @@
-"""Teste de fumaca: gera uma imagem sintetica em tons de cinza, chama o
-endpoint /analyze e verifica o formato da resposta. Nao valida acuracia
-clinica; apenas confirma que o pipeline roda de ponta a ponta."""
+"""Teste de fumaça: gera uma imagem sintética em tons de cinza, chama o
+endpoint /analyze e verifica o formato da resposta. Não valida acurácia
+clínica; apenas confirma que o pipeline roda de ponta a ponta."""
 import io
+
 import numpy as np
 from PIL import Image
 from fastapi.testclient import TestClient
 
-from main import app
+from entrypoint import app
 
 client = TestClient(app)
 
 
 def synthetic_xray(size=256):
-    # Fundo escuro com dois "campos pulmonares" mais claros e ruido.
+    # Fundo escuro com dois "campos pulmonares" mais claros e ruído.
     img = np.random.normal(30, 8, (size, size)).clip(0, 255)
     yy, xx = np.mgrid[0:size, 0:size]
     for cx in (size * 0.32, size * 0.68):
-        blob = np.exp(-(((xx - cx) ** 2) / (2 * (size * 0.12) ** 2)
-                        + ((yy - size * 0.5) ** 2) / (2 * (size * 0.22) ** 2)))
+        blob = np.exp(
+            -(
+                ((xx - cx) ** 2) / (2 * (size * 0.12) ** 2)
+                + ((yy - size * 0.5) ** 2) / (2 * (size * 0.22) ** 2)
+            )
+        )
         img += blob * 120
     img = img.clip(0, 255).astype(np.uint8)
     buf = io.BytesIO()
@@ -25,11 +30,15 @@ def synthetic_xray(size=256):
     return buf.getvalue()
 
 
-def test_health():
-    r = client.get("/health")
-    assert r.status_code == 200, r.text
-    assert r.json()["status"] == "ok"
-    print("health ok:", r.json())
+def test_liveness_and_readiness():
+    live = client.get("/health/live")
+    assert live.status_code == 200, live.text
+    assert live.json()["status"] == "ok"
+
+    ready = client.get("/health/ready")
+    assert ready.status_code == 200, ready.text
+    assert ready.json()["status"] == "ready"
+    assert ready.json()["model_loaded"] is True
 
 
 def test_analyze():
@@ -50,10 +59,6 @@ def test_analyze():
     assert data["timings"]["total_ms"] >= data["timings"]["inference_ms"]
     assert r.headers["x-request-id"]
     assert data["target_pathology"] in [p["pathology"] for p in data["predictions"]]
-    top = data["predictions"][0]
-    print("target:", data["target_pathology"])
-    print("top-3:", [(p["pathology"], p["prob"]) for p in data["predictions"][:3]])
-    print("overlay bytes:", len(data["image_overlay"]))
 
 
 def test_explicit_gradcam_target():
@@ -69,8 +74,19 @@ def test_explicit_gradcam_target():
     assert data["explainability"]["target_pathology"] == "Effusion"
 
 
+def test_operational_metrics_after_requests():
+    response = client.get("/metrics")
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["runtime"]["requests_total"] >= 1
+    assert "cache" in payload
+    assert "jobs" in payload
+    assert "rate_limit" in payload
+
+
 if __name__ == "__main__":
-    test_health()
+    test_liveness_and_readiness()
     test_analyze()
     test_explicit_gradcam_target()
+    test_operational_metrics_after_requests()
     print("\nOK: pipeline completo executou.")
