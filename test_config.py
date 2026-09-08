@@ -5,6 +5,7 @@ def test_defaults_are_safe():
     cfg = load_settings({})
     assert cfg.max_upload_mb == 15
     assert cfg.rate_limit_max == 30
+    assert cfg.job_workers == 2
     assert cfg.trust_proxy is False
     assert cfg.metrics_enabled is True
     assert cfg.admin_token == ""
@@ -16,6 +17,8 @@ def test_environment_overrides_are_parsed():
             "THORAX_ALLOWED_ORIGINS": "https://a.example, https://b.example",
             "THORAX_MAX_UPLOAD_MB": "20",
             "THORAX_RATE_LIMIT_MAX": "50",
+            "THORAX_JOB_MAX": "12",
+            "THORAX_JOB_WORKERS": "4",
             "THORAX_TRUST_PROXY": "true",
             "THORAX_METRICS_ENABLED": "0",
             "THORAX_ADMIN_TOKEN": " secret ",
@@ -24,9 +27,17 @@ def test_environment_overrides_are_parsed():
     assert cfg.allowed_origins == ("https://a.example", "https://b.example")
     assert cfg.max_upload_mb == 20
     assert cfg.rate_limit_max == 50
+    assert cfg.job_max == 12
+    assert cfg.job_workers == 4
     assert cfg.trust_proxy is True
     assert cfg.metrics_enabled is False
     assert cfg.admin_token == "secret"
+
+
+def test_worker_count_never_exceeds_job_capacity():
+    cfg = load_settings({"THORAX_JOB_MAX": "2", "THORAX_JOB_WORKERS": "8"})
+    assert cfg.job_max == 2
+    assert cfg.job_workers == 2
 
 
 def test_invalid_or_out_of_range_values_fall_back():
@@ -35,11 +46,13 @@ def test_invalid_or_out_of_range_values_fall_back():
             "THORAX_MAX_UPLOAD_MB": "9999",
             "THORAX_RATE_LIMIT_MAX": "invalid",
             "THORAX_JOB_TTL_SECONDS": "1",
+            "THORAX_JOB_WORKERS": "999",
         }
     )
     assert cfg.max_upload_mb == 15
     assert cfg.rate_limit_max == 30
     assert cfg.job_ttl_seconds == 1800
+    assert cfg.job_workers == 2
 
 
 def test_public_dict_never_exposes_admin_token():
@@ -47,3 +60,4 @@ def test_public_dict_never_exposes_admin_token():
     payload = cfg.public_dict()
     assert "admin_token" not in payload
     assert "top-secret" not in repr(payload)
+    assert payload["job_workers"] == 2
