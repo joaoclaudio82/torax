@@ -23,6 +23,10 @@ PNEUMONIA_GROUP = ["Pneumonia", "Consolidation", "Infiltration", "Lung Opacity"]
 # mesmo lock. RLock evita deadlock caso uma operação interna seja reutilizada.
 _model_lock = threading.RLock()
 
+# Absorve o erro de representação float32 apenas nas bordas de +/-0.1.
+# Não arredonda escores ou margens nem altera o ponto operacional de 0.5.
+_BAND_EDGE_ATOL = 1e-7
+
 
 def _binary_ambiguity(probability: float) -> float:
     probability = min(1.0, max(0.0, probability))
@@ -72,9 +76,13 @@ def predict(tensor: torch.Tensor) -> dict:
         margin = score - threshold if threshold is not None else None
         if margin is None:
             threshold_band = "unavailable"
-        elif margin >= 0.1:
+        elif margin >= 0.1 or math.isclose(
+            margin, 0.1, rel_tol=0.0, abs_tol=_BAND_EDGE_ATOL
+        ):
             threshold_band = "above"
-        elif margin <= -0.1:
+        elif margin <= -0.1 or math.isclose(
+            margin, -0.1, rel_tol=0.0, abs_tol=_BAND_EDGE_ATOL
+        ):
             threshold_band = "below"
         else:
             threshold_band = "borderline"
