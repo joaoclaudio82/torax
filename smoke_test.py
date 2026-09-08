@@ -13,7 +13,6 @@ client = TestClient(app)
 
 
 def synthetic_xray(size=256):
-    # Fundo escuro com dois "campos pulmonares" mais claros e ruído.
     img = np.random.normal(30, 8, (size, size)).clip(0, 255)
     yy, xx = np.mgrid[0:size, 0:size]
     for cx in (size * 0.32, size * 0.68):
@@ -51,7 +50,9 @@ def test_analyze():
     assert 0 <= data["input_quality"]["score"] <= 100
     assert "metrics" in data["input_quality"]
     assert data["image_metadata"]["format"] == "PNG"
-    assert data["image_metadata"]["anonymized"] is True
+    assert data["image_metadata"]["metadata_filtered"] is True
+    assert data["image_metadata"]["pixel_phi_checked"] is False
+    assert data["image_metadata"]["anonymized"] is False
     assert data["explainability"]["target_pathology"] == data["target_pathology"]
     assert "visual_region" in data["explainability"]["cam_stats"]
     assert "borderline_classes" in data["decision_context"]

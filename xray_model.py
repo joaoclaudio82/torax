@@ -6,8 +6,8 @@ Grad-CAM para indicar as regiões que mais influenciaram cada previsão.
 """
 from __future__ import annotations
 
-import threading
 import math
+import threading
 from functools import lru_cache
 
 import numpy as np
@@ -18,7 +18,14 @@ import torchxrayvision as xrv
 WEIGHTS = "densenet121-res224-all"
 PNEUMONIA_GROUP = ["Pneumonia", "Consolidation", "Infiltration", "Lung Opacity"]
 
-_lock = threading.Lock()
+# O torchxrayvision usa uma única instância de modelo em cache. Predição e
+# Grad-CAM compartilham essa instância e, portanto, precisam compartilhar o
+# mesmo lock. RLock evita deadlock caso uma operação interna seja reutilizada.
+_model_lock = threading.RLock()
+
+# Absorve o erro de representação float32 apenas nas bordas de +/-0.1.
+# Não arredonda escores ou margens nem altera o ponto operacional de 0.5.
+_BAND_EDGE_ATOL = 1e-7
 
 
 def _binary_ambiguity(probability: float) -> float:
@@ -40,35 +47,56 @@ def get_model():
 
 
 def predict(tensor: torch.Tensor) -> dict:
-    """Devolve a probabilidade e o limiar de operação por patologia."""
+    """Devolve o escore normalizado e o limiar coerente por patologia.
+
+    Para pesos com ``op_threshs``, o torchxrayvision já aplica sigmoid seguida
+    de ``op_norm`` no ``forward``. Nessa escala normalizada, o ponto de operação
+    de cada classe corresponde a 0.5. ``source_op_threshold`` preserva o limiar
+    original dos pesos apenas para rastreabilidade; ele não deve ser comparado
+    diretamente com o escore retornado pelo modelo.
+    """
     loaded_model = get_model()
-    with torch.no_grad():
-        out = loaded_model(tensor)[0]
+    with _model_lock:
+        with torch.no_grad():
+            out = loaded_model(tensor)[0]
 
     result = {}
     thresholds = loaded_model.op_threshs
     for index, name in enumerate(loaded_model.pathologies):
         if not name:
             continue
-        probability = float(out[index].item())
-        threshold = None
+        score = float(out[index].item())
+        source_threshold = None
         if thresholds is not None and not np.isnan(float(thresholds[index])):
-            threshold = float(thresholds[index])
-        margin = probability - threshold if threshold is not None else None
+            source_threshold = float(thresholds[index])
+
+        # Quando op_threshs existe, o forward da biblioteca transforma o
+        # escore de modo que o ponto de operação fique exatamente em 0.5.
+        threshold = 0.5 if source_threshold is not None else None
+        margin = score - threshold if threshold is not None else None
         if margin is None:
             threshold_band = "unavailable"
-        elif margin >= 0.1:
+        elif margin >= 0.1 or math.isclose(
+            margin, 0.1, rel_tol=0.0, abs_tol=_BAND_EDGE_ATOL
+        ):
             threshold_band = "above"
-        elif margin <= -0.1:
+        elif margin <= -0.1 or math.isclose(
+            margin, -0.1, rel_tol=0.0, abs_tol=_BAND_EDGE_ATOL
+        ):
             threshold_band = "below"
         else:
             threshold_band = "borderline"
         result[name] = {
-            "prob": probability,
+            # Mantém ``prob`` por compatibilidade com a API/UI existente.
+            # Semanticamente, trata-se de um escore normalizado pelo ponto de
+            # operação, não de probabilidade diagnóstica calibrada.
+            "prob": score,
+            "score_type": "operating-point-normalized" if threshold is not None else "model-output",
             "op_threshold": threshold,
+            "source_op_threshold": source_threshold,
             "threshold_margin": margin,
             "threshold_band": threshold_band,
-            "ambiguity": _binary_ambiguity(probability),
+            "ambiguity": _binary_ambiguity(score),
         }
     return result
 
@@ -102,6 +130,10 @@ def decision_context(probabilities: dict) -> dict:
         "top_probability_gap": round(float(top_gap), 4),
         "borderline_classes": borderline,
         "highest_ambiguity": highest_ambiguity,
+        "score_semantics": (
+            "Os escores podem estar normalizados pelo ponto de operação do modelo; "
+            "não representam probabilidade diagnóstica calibrada."
+        ),
         "note": (
             "Ambiguidade e margem descrevem a saída matemática do modelo; "
             "não representam certeza diagnóstica."
@@ -122,9 +154,12 @@ def gradcam(tensor: torch.Tensor, target_pathology: str) -> np.ndarray:
         output.retain_grad()
         activations["value"] = output
 
-    handle = loaded_model.features.register_forward_hook(forward_hook)
-    try:
-        with _lock:
+    # O hook precisa existir apenas enquanto nenhum outro forward usa a mesma
+    # instância. Registrar o hook fora do lock permitia que um predict sob
+    # torch.no_grad() disparasse retain_grad() em um tensor sem gradiente.
+    with _model_lock:
+        handle = loaded_model.features.register_forward_hook(forward_hook)
+        try:
             loaded_model.zero_grad(set_to_none=True)
             x = tensor.clone().requires_grad_(True)
             output = loaded_model(x)
@@ -138,8 +173,9 @@ def gradcam(tensor: torch.Tensor, target_pathology: str) -> np.ndarray:
                 cam, size=(224, 224), mode="bilinear", align_corners=False
             )
             cam = cam[0, 0].detach().cpu().numpy()
-    finally:
-        handle.remove()
+        finally:
+            handle.remove()
+            loaded_model.zero_grad(set_to_none=True)
 
     cam = cam - cam.min()
     return cam / (cam.max() + 1e-8)

@@ -12,14 +12,7 @@ def _env_bool(raw: str | None, default: bool = False) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _bounded_int(
-    environ: Mapping[str, str],
-    name: str,
-    default: int,
-    *,
-    minimum: int,
-    maximum: int,
-) -> int:
+def _bounded_int(environ: Mapping[str, str], name: str, default: int, *, minimum: int, maximum: int) -> int:
     raw = environ.get(name)
     if raw is None or raw.strip() == "":
         return default
@@ -31,10 +24,7 @@ def _bounded_int(
 
 
 def _origins(environ: Mapping[str, str]) -> tuple[str, ...]:
-    raw = environ.get(
-        "THORAX_ALLOWED_ORIGINS",
-        "http://localhost:8000,http://127.0.0.1:8000",
-    )
+    raw = environ.get("THORAX_ALLOWED_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000")
     values = tuple(item.strip() for item in raw.split(",") if item.strip())
     return values or ("http://localhost:8000", "http://127.0.0.1:8000")
 
@@ -48,6 +38,7 @@ class Settings:
     rate_limit_max: int
     rate_limit_window_seconds: int
     job_max: int
+    job_workers: int
     job_ttl_seconds: int
     cache_max_entries: int
     cache_ttl_seconds: int
@@ -59,7 +50,6 @@ class Settings:
         return max(1, self.max_upload_bytes // (1024 * 1024))
 
     def public_dict(self) -> dict:
-        """Configuração segura para observabilidade; nunca expõe o token admin."""
         return {
             "allowed_origins": list(self.allowed_origins),
             "trust_proxy": self.trust_proxy,
@@ -67,6 +57,7 @@ class Settings:
             "rate_limit_max": self.rate_limit_max,
             "rate_limit_window_seconds": self.rate_limit_window_seconds,
             "job_max": self.job_max,
+            "job_workers": self.job_workers,
             "job_ttl_seconds": self.job_ttl_seconds,
             "cache_max_entries": self.cache_max_entries,
             "cache_ttl_seconds": self.cache_ttl_seconds,
@@ -76,38 +67,23 @@ class Settings:
 
 def load_settings(environ: Mapping[str, str] | None = None) -> Settings:
     env = os.environ if environ is None else environ
-    max_upload_mb = _bounded_int(
-        env,
-        "THORAX_MAX_UPLOAD_MB",
-        15,
-        minimum=1,
-        maximum=100,
-    )
+    max_upload_mb = _bounded_int(env, "THORAX_MAX_UPLOAD_MB", 15, minimum=1, maximum=100)
+    job_max = _bounded_int(env, "THORAX_JOB_MAX", 64, minimum=1, maximum=10000)
+    job_workers = _bounded_int(env, "THORAX_JOB_WORKERS", 2, minimum=1, maximum=32)
     return Settings(
         allowed_origins=_origins(env),
         admin_token=env.get("THORAX_ADMIN_TOKEN", "").strip(),
         trust_proxy=_env_bool(env.get("THORAX_TRUST_PROXY"), False),
         max_upload_bytes=max_upload_mb * 1024 * 1024,
-        rate_limit_max=_bounded_int(
-            env, "THORAX_RATE_LIMIT_MAX", 30, minimum=1, maximum=10000
-        ),
-        rate_limit_window_seconds=_bounded_int(
-            env, "THORAX_RATE_LIMIT_WINDOW", 60, minimum=1, maximum=86400
-        ),
-        job_max=_bounded_int(env, "THORAX_JOB_MAX", 64, minimum=1, maximum=10000),
-        job_ttl_seconds=_bounded_int(
-            env, "THORAX_JOB_TTL_SECONDS", 1800, minimum=30, maximum=604800
-        ),
-        cache_max_entries=_bounded_int(
-            env, "THORAX_CACHE_MAX_ENTRIES", 32, minimum=1, maximum=10000
-        ),
-        cache_ttl_seconds=_bounded_int(
-            env, "THORAX_CACHE_TTL_SECONDS", 1800, minimum=30, maximum=604800
-        ),
+        rate_limit_max=_bounded_int(env, "THORAX_RATE_LIMIT_MAX", 30, minimum=1, maximum=10000),
+        rate_limit_window_seconds=_bounded_int(env, "THORAX_RATE_LIMIT_WINDOW", 60, minimum=1, maximum=86400),
+        job_max=job_max,
+        job_workers=min(job_workers, job_max),
+        job_ttl_seconds=_bounded_int(env, "THORAX_JOB_TTL_SECONDS", 1800, minimum=30, maximum=604800),
+        cache_max_entries=_bounded_int(env, "THORAX_CACHE_MAX_ENTRIES", 32, minimum=1, maximum=10000),
+        cache_ttl_seconds=_bounded_int(env, "THORAX_CACHE_TTL_SECONDS", 1800, minimum=30, maximum=604800),
         metrics_enabled=_env_bool(env.get("THORAX_METRICS_ENABLED"), True),
-        request_id_max_length=_bounded_int(
-            env, "THORAX_REQUEST_ID_MAX_LENGTH", 128, minimum=16, maximum=512
-        ),
+        request_id_max_length=_bounded_int(env, "THORAX_REQUEST_ID_MAX_LENGTH", 128, minimum=16, maximum=512),
     )
 
 
