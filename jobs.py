@@ -12,6 +12,8 @@ from typing import Any, Callable
 
 from config import settings
 
+TERMINAL_STATUSES = {"completed", "failed", "cancelled", "rejected"}
+
 
 @dataclass
 class Job:
@@ -27,42 +29,60 @@ class Job:
 
 
 class JobStore:
-    def __init__(
-        self,
-        max_jobs: int | None = None,
-        ttl_seconds: int | None = None,
-    ):
+    def __init__(self, max_jobs: int | None = None, ttl_seconds: int | None = None):
         self.max_jobs = max_jobs if max_jobs is not None else settings.job_max
-        self.ttl_seconds = (
-            ttl_seconds if ttl_seconds is not None else settings.job_ttl_seconds
-        )
+        self.ttl_seconds = ttl_seconds if ttl_seconds is not None else settings.job_ttl_seconds
         self._jobs: dict[str, Job] = {}
         self._lock = threading.Lock()
         self.purged_expired = 0
         self.purged_overflow = 0
+        self.rejected_capacity = 0
 
     def _purge_locked(self, now: float | None = None) -> None:
         now = time.time() if now is None else now
         expired = [
             job_id
             for job_id, job in self._jobs.items()
-            if now - job.updated_at > self.ttl_seconds
+            if job.status in TERMINAL_STATUSES and now - job.updated_at > self.ttl_seconds
         ]
         for job_id in expired:
             del self._jobs[job_id]
             self.purged_expired += 1
+
         while len(self._jobs) > self.max_jobs:
-            oldest = min(self._jobs.values(), key=lambda item: item.created_at)
+            terminal = [job for job in self._jobs.values() if job.status in TERMINAL_STATUSES]
+            if not terminal:
+                break
+            oldest = min(terminal, key=lambda item: item.updated_at)
             del self._jobs[oldest.id]
             self.purged_overflow += 1
 
     def create(self) -> Job:
-        job = Job(id=str(uuid.uuid4()))
         with self._lock:
             self._purge_locked()
+            active = sum(job.status not in TERMINAL_STATUSES for job in self._jobs.values())
+            if active >= self.max_jobs:
+                self.rejected_capacity += 1
+                # Mantém o resultado consultável, mas sinaliza imediatamente que
+                # a fila está cheia. run_job ignora jobs rejeitados.
+                terminal = [job for job in self._jobs.values() if job.status in TERMINAL_STATUSES]
+                if terminal:
+                    oldest = min(terminal, key=lambda item: item.updated_at)
+                    del self._jobs[oldest.id]
+                job = Job(
+                    id=str(uuid.uuid4()),
+                    status="rejected",
+                    progress=1.0,
+                    stage="capacity",
+                    error="Capacidade de análises assíncronas atingida.",
+                )
+                self._jobs[job.id] = job
+                return job
+
+            job = Job(id=str(uuid.uuid4()))
             self._jobs[job.id] = job
             self._purge_locked()
-        return job
+            return job
 
     def get(self, job_id: str) -> Job | None:
         with self._lock:
@@ -100,7 +120,7 @@ class JobStore:
     ) -> None:
         with self._lock:
             job = self._jobs.get(job_id)
-            if job is None:
+            if job is None or job.status == "rejected":
                 return
             if job.cancel_requested and status not in {"cancelled", "failed"}:
                 job.status = "cancelled"
@@ -141,13 +161,16 @@ class JobStore:
                 "jobs": len(self._jobs),
                 "status_counts": dict(counts),
                 "max_jobs": self.max_jobs,
+                "workers": settings.job_workers,
                 "ttl_seconds": self.ttl_seconds,
                 "purged_expired": self.purged_expired,
                 "purged_overflow": self.purged_overflow,
+                "rejected_capacity": self.rejected_capacity,
             }
 
 
 store = JobStore()
+_worker_slots = threading.BoundedSemaphore(settings.job_workers)
 
 
 class JobCancelled(Exception):
@@ -155,46 +178,35 @@ class JobCancelled(Exception):
 
 
 def run_job(job_id: str, worker: Callable[[Callable[..., None]], dict]) -> None:
+    job = store.get(job_id)
+    if job is None or job.status == "rejected" or store.is_cancelled(job_id):
+        return
+
     def report(**kwargs) -> None:
         if store.is_cancelled(job_id):
             raise JobCancelled()
         store.update(job_id, **kwargs)
 
-    if store.is_cancelled(job_id):
-        return
+    acquired = _worker_slots.acquire(timeout=0.1)
+    if not acquired:
+        # Mantém o job em fila e aguarda um worker, mas sem executar inferência
+        # simultaneamente acima do limite configurado.
+        store.update(job_id, status="queued", progress=0.02, stage="waiting-worker")
+        _worker_slots.acquire()
 
-    store.update(job_id, status="running", progress=0.05, stage="starting")
     try:
-        result = worker(report)
         if store.is_cancelled(job_id):
-            store.update(
-                job_id,
-                status="cancelled",
-                progress=1.0,
-                stage="cancelled",
-                error="Cancelado pelo cliente.",
-            )
             return
-        store.update(
-            job_id,
-            status="completed",
-            progress=1.0,
-            stage="done",
-            result=result,
-        )
-    except JobCancelled:
-        store.update(
-            job_id,
-            status="cancelled",
-            progress=1.0,
-            stage="cancelled",
-            error="Cancelado pelo cliente.",
-        )
-    except Exception as exc:  # noqa: BLE001
-        store.update(
-            job_id,
-            status="failed",
-            progress=1.0,
-            stage="error",
-            error=str(exc),
-        )
+        store.update(job_id, status="running", progress=0.05, stage="starting")
+        try:
+            result = worker(report)
+            if store.is_cancelled(job_id):
+                store.update(job_id, status="cancelled", progress=1.0, stage="cancelled", error="Cancelado pelo cliente.")
+                return
+            store.update(job_id, status="completed", progress=1.0, stage="done", result=result)
+        except JobCancelled:
+            store.update(job_id, status="cancelled", progress=1.0, stage="cancelled", error="Cancelado pelo cliente.")
+        except Exception as exc:  # noqa: BLE001
+            store.update(job_id, status="failed", progress=1.0, stage="error", error=str(exc))
+    finally:
+        _worker_slots.release()
