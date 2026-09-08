@@ -52,31 +52,47 @@ def precision(counts: dict) -> float | None:
 
 
 def f1_score(counts: dict) -> float | None:
-    prec = precision(counts)
-    sens = sensitivity(counts)
-    if prec is None or sens is None or (prec + sens) == 0:
+    """F1 = 2*VP / (2*VP + FP + FN).
+
+    A forma por contagens evita transformar o caso válido F1=0 em ``None``
+    quando precisão e sensibilidade são ambas zero.
+    """
+    denominator = 2 * counts["tp"] + counts["fp"] + counts["fn"]
+    if denominator == 0:
         return None
-    return round(2 * prec * sens / (prec + sens), 4)
+    return round((2 * counts["tp"]) / denominator, 4)
 
 
 def binary_auroc(y_true: list[int], scores: list[float]) -> float | None:
-    """AUROC por ranking (Mann-Whitney) para uma classe binária."""
+    """AUROC por ranks com tratamento de empates em O(n log n)."""
     if len(y_true) != len(scores) or not y_true:
         raise ValueError("Entradas inválidas para AUROC.")
+    if any(label not in (0, 1) for label in y_true):
+        raise ValueError("Rótulos devem ser 0 ou 1.")
 
-    positives = [score for label, score in zip(y_true, scores) if label == 1]
-    negatives = [score for label, score in zip(y_true, scores) if label == 0]
-    if not positives or not negatives:
+    n_pos = sum(y_true)
+    n_neg = len(y_true) - n_pos
+    if n_pos == 0 or n_neg == 0:
         return None
 
-    greater = equal = 0
-    for positive in positives:
-        for negative in negatives:
-            if positive > negative:
-                greater += 1
-            elif positive == negative:
-                equal += 1
-    return round((greater + 0.5 * equal) / (len(positives) * len(negatives)), 4)
+    ordered = sorted(zip(scores, y_true), key=lambda item: item[0])
+    rank = 1
+    positive_rank_sum = 0.0
+    index = 0
+    while index < len(ordered):
+        end = index + 1
+        while end < len(ordered) and ordered[end][0] == ordered[index][0]:
+            end += 1
+        # Ranks são 1-based; empates recebem a média dos ranks ocupados.
+        group_size = end - index
+        average_rank = (rank + (rank + group_size - 1)) / 2
+        positives_in_group = sum(label for _score, label in ordered[index:end])
+        positive_rank_sum += positives_in_group * average_rank
+        rank += group_size
+        index = end
+
+    u_statistic = positive_rank_sum - n_pos * (n_pos + 1) / 2
+    return round(u_statistic / (n_pos * n_neg), 4)
 
 
 def summarize_binary_evaluation(
