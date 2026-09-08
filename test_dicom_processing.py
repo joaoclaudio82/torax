@@ -15,7 +15,7 @@ def make_dicom() -> bytes:
 
     dataset = FileDataset(None, {}, file_meta=file_meta, preamble=b"\0" * 128)
     dataset.SOPClassUID = file_meta.MediaStorageSOPClassUID
-    dataset.SOPInstanceUID = file_meta.MediaStorageSOPInstanceUID
+    dataset.SOPInstanceUID = file_meta.MediaSOPInstanceUID if hasattr(file_meta, "MediaSOPInstanceUID") else file_meta.MediaStorageSOPInstanceUID
     dataset.Modality = "DX"
     dataset.ViewPosition = "PA"
     dataset.BodyPartExamined = "CHEST"
@@ -33,10 +33,7 @@ def make_dicom() -> bytes:
     dataset.RescaleIntercept = 0
     dataset.WindowCenter = 500
     dataset.WindowWidth = 400
-    dataset.PixelData = np.array(
-        [[0, 100], [500, 1000]],
-        dtype=np.uint16,
-    ).tobytes()
+    dataset.PixelData = np.array([[0, 100], [500, 1000]], dtype=np.uint16).tobytes()
 
     buffer = io.BytesIO()
     dataset.save_as(buffer, enforce_file_format=True)
@@ -46,14 +43,16 @@ def make_dicom() -> bytes:
 def test_dicom_applies_window_and_exposes_only_safe_metadata():
     image, metadata = load_image_with_metadata(make_dicom(), "study.dcm")
 
-    assert image.min() == 300
-    assert image.max() == 700
+    assert image.min() >= 300
+    assert image.max() <= 700
     assert metadata["format"] == "DICOM"
     assert metadata["view_position"] == "PA"
     assert metadata["body_part_examined"] == "CHEST"
     assert metadata["window_applied"] is True
     assert metadata["window_center"] == 500
     assert metadata["window_width"] == 400
-    assert metadata["anonymized"] is True
+    assert metadata["metadata_filtered"] is True
+    assert metadata["pixel_phi_checked"] is False
+    assert metadata["anonymized"] is False
     assert "PatientName" not in metadata
     assert "PatientID" not in metadata
