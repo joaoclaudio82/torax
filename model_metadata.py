@@ -15,7 +15,7 @@ def build_model_card(model, *, weights: str) -> dict:
                 numeric = float(value)
             except (TypeError, ValueError):
                 continue
-            if numeric == numeric:  # NaN é o único float diferente de si próprio.
+            if numeric == numeric:
                 thresholds_available += 1
 
     return {
@@ -27,11 +27,22 @@ def build_model_card(model, *, weights: str) -> dict:
         "pathologies": pathologies,
         "pathology_count": len(pathologies),
         "operating_thresholds_available": thresholds_available,
+        "score_semantics": {
+            "api_field": "prob",
+            "type": "operating-point-normalized model score",
+            "calibrated_probability": False,
+            "normalized_operating_threshold": 0.5,
+            "note": (
+                "Para classes com op_threshs, o torchxrayvision aplica sigmoid "
+                "e op_norm; o ponto de operação é 0.5 na saída normalizada."
+            ),
+        },
         "intended_use": "research-and-education",
         "clinical_use": False,
         "limitations": [
-            "Predictions are not a radiology report.",
+            "Predictions are not calibrated diagnostic probabilities or a radiology report.",
             "Grad-CAM indicates model attention and is not lesion segmentation.",
             "Performance depends on acquisition protocol and dataset shift.",
+            "Returned metadata is filtered, but pixel-level identifiers are not automatically verified.",
         ],
     }
