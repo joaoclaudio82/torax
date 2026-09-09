@@ -1,6 +1,9 @@
+from dataclasses import replace
+
 from fastapi.testclient import TestClient
 
-from main import MAX_UPLOAD_BYTES, app
+from config import settings
+from main import app
 
 
 client = TestClient(app)
@@ -36,7 +39,7 @@ def test_rejects_oversized_upload():
         files={
             "file": (
                 "large.png",
-                b"0" * (MAX_UPLOAD_BYTES + 1),
+                b"0" * (settings.max_upload_bytes + 1),
                 "image/png",
             )
         },
@@ -68,11 +71,11 @@ def test_nih_manifest_endpoint_reports_availability():
 
 
 def test_cache_clear_requires_admin_token(monkeypatch):
-    monkeypatch.setenv("THORAX_ADMIN_TOKEN", "secret-token")
-    # Reload is not needed: ADMIN_TOKEN read at import. Patch module attribute.
     import main as main_module
 
-    monkeypatch.setattr(main_module, "ADMIN_TOKEN", "secret-token")
+    configured = replace(main_module.settings, admin_token="secret-token")
+    monkeypatch.setattr(main_module, "settings", configured)
+
     denied = client.post("/admin/cache/clear")
     assert denied.status_code == 401
     allowed = client.post(
