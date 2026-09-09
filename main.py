@@ -26,33 +26,24 @@ import overlay
 import xray_model
 from analysis_cache import cache as analysis_cache
 from comparison import build_prediction_deltas
+from config import settings
 from jobs import run_job, store as job_store
 from radiograph_quality import assess_radiograph_quality
 from rate_limit import client_key, is_rate_limited_path, limiter as rate_limiter
 from uncertainty import estimate_prediction_stability
 
-app = FastAPI(title="Triagem de Torax (prototipo de pesquisa)", version="2.2.0")
+app = FastAPI(title="Triagem de Torax (prototipo de pesquisa)", version="2.2.1")
 logger = logging.getLogger("thorax.api")
-ALLOWED_ORIGINS = [
-    origin.strip()
-    for origin in os.getenv(
-        "THORAX_ALLOWED_ORIGINS",
-        "http://localhost:8000,http://127.0.0.1:8000",
-    ).split(",")
-    if origin.strip()
-]
-ADMIN_TOKEN = os.getenv("THORAX_ADMIN_TOKEN", "").strip()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=list(settings.allowed_origins),
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type", "X-Request-ID", "X-Admin-Token"],
 )
 
 PROJECT_DIR = os.path.dirname(__file__)
 NIH_DEMO_DIR = Path(PROJECT_DIR) / "assets" / "nih-demo"
-MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 SUPPORTED_EXTENSIONS = (".png", ".jpg", ".jpeg", ".dcm", ".dicom")
 SUPPORTED_CONTENT_TYPES = {
     "image/png",
@@ -66,9 +57,18 @@ _inference_lock = threading.Lock()
 _inference_cache: dict[str, dict] = {}
 
 
+def _request_id(request: Request) -> str:
+    """Normaliza IDs externos antes de ecoá-los em headers e logs."""
+    raw = (request.headers.get("X-Request-ID") or "").strip()
+    sanitized = "".join(ch for ch in raw if ch.isprintable() and ch not in "\r\n")
+    if not sanitized:
+        sanitized = str(uuid.uuid4())
+    return sanitized[: settings.request_id_max_length]
+
+
 @app.middleware("http")
 async def security_and_observability(request: Request, call_next):
-    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    request_id = _request_id(request)
     if request.method == "POST" and is_rate_limited_path(request.url.path):
         key = client_key(request)
         allowed, retry_after = rate_limiter.allow(key)
@@ -133,10 +133,10 @@ def _has_valid_signature(data: bytes, filename: str) -> bool:
 
 def _validate_upload(file: UploadFile, data: bytes) -> None:
     filename = (file.filename or "").lower()
-    if len(data) > MAX_UPLOAD_BYTES:
+    if len(data) > settings.max_upload_bytes:
         raise HTTPException(
             status_code=413,
-            detail="Arquivo excede o limite de 15 MB.",
+            detail=f"Arquivo excede o limite de {settings.max_upload_mb} MB.",
         )
     if not filename.endswith(SUPPORTED_EXTENSIONS):
         raise HTTPException(
@@ -241,7 +241,7 @@ def _get_inference_artifacts(
     }
     with _inference_lock:
         _inference_cache[inf_key] = artifacts
-        while len(_inference_cache) > 16:
+        while len(_inference_cache) > settings.cache_max_entries:
             _inference_cache.pop(next(iter(_inference_cache)))
     return artifacts
 
@@ -281,6 +281,7 @@ def api_info():
             "cache",
             "job-cancel",
         ],
+        "runtime": settings.public_dict(),
         "disclaimer": (
             "Protótipo de pesquisa e ensino. Não substitui avaliação médica."
         ),
@@ -295,13 +296,11 @@ def health():
         "api_version": app.version,
         "weights": xray_model.WEIGHTS,
         "pathologies": len([p for p in m.pathologies if p]),
-        "max_upload_mb": MAX_UPLOAD_BYTES // (1024 * 1024),
+        "max_upload_mb": settings.max_upload_mb,
         "cache": analysis_cache.stats(),
+        "jobs": job_store.stats(),
         "capabilities": api_info()["capabilities"],
-        "rate_limit": {
-            "max_requests": rate_limiter.max_requests,
-            "window_seconds": rate_limiter.window_seconds,
-        },
+        "rate_limit": rate_limiter.stats(),
     }
 
 
@@ -520,6 +519,8 @@ async def analyze_async(
         raise HTTPException(status_code=400, detail="Arquivo vazio.")
     _validate_upload(file, data)
     job = job_store.create()
+    if job.status == "rejected":
+        raise HTTPException(status_code=503, detail=job.error or "Fila indisponível.")
     filename = file.filename or ""
 
     def worker(report):
@@ -605,9 +606,9 @@ async def compare(
 
 @app.post("/admin/cache/clear")
 def clear_cache(x_admin_token: str | None = Header(default=None)):
-    if not ADMIN_TOKEN:
+    if not settings.admin_token:
         raise HTTPException(status_code=404, detail="Endpoint não disponível.")
-    if not x_admin_token or x_admin_token != ADMIN_TOKEN:
+    if not x_admin_token or x_admin_token != settings.admin_token:
         raise HTTPException(status_code=401, detail="Token administrativo inválido.")
     removed = analysis_cache.clear()
     with _inference_lock:
