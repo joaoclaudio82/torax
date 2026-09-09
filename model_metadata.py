@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 
+MODEL_CARD_VERSION = "1.1"
+
+
 def build_model_card(model, *, weights: str) -> dict:
     raw_pathologies = list(getattr(model, "pathologies", []) or [])
     pathologies = [item for item in raw_pathologies if item]
@@ -19,6 +22,7 @@ def build_model_card(model, *, weights: str) -> dict:
                 thresholds_available += 1
 
     return {
+        "model_card_version": MODEL_CARD_VERSION,
         "architecture": "DenseNet-121",
         "provider": "torchxrayvision",
         "weights": weights,
@@ -28,14 +32,22 @@ def build_model_card(model, *, weights: str) -> dict:
         "pathology_count": len(pathologies),
         "operating_thresholds_available": thresholds_available,
         "score_semantics": {
-            "api_field": "prob",
+            "legacy_api_field": "prob",
+            "recommended_name": "model_score",
             "type": "operating-point-normalized model score",
             "calibrated_probability": False,
             "normalized_operating_threshold": 0.5,
             "note": (
-                "Para classes com op_threshs, o torchxrayvision aplica sigmoid "
-                "e op_norm; o ponto de operação é 0.5 na saída normalizada."
+                "O campo legado `prob` deve ser interpretado como escore do modelo, "
+                "não como probabilidade diagnóstica calibrada. Para classes com "
+                "op_threshs, o torchxrayvision aplica sigmoid e op_norm; o ponto "
+                "de operação é 0.5 na saída normalizada."
             ),
+        },
+        "explainability": {
+            "method": "Grad-CAM",
+            "semantic_scope": "model-attention",
+            "lesion_segmentation": False,
         },
         "intended_use": "research-and-education",
         "clinical_use": False,
@@ -43,6 +55,7 @@ def build_model_card(model, *, weights: str) -> dict:
             "Predictions are not calibrated diagnostic probabilities or a radiology report.",
             "Grad-CAM indicates model attention and is not lesion segmentation.",
             "Performance depends on acquisition protocol and dataset shift.",
+            "External validation is required before any clinical interpretation.",
             "Returned metadata is filtered, but pixel-level identifiers are not automatically verified.",
         ],
     }
